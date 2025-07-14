@@ -7,6 +7,9 @@ from scipy.interpolate import interp1d, UnivariateSpline
 import saved_airfoils
 
 
+# Set parameters at the bottom of the file
+
+
 @dataclass
 class Airfoil:
     """Airfoil data structure."""
@@ -83,9 +86,12 @@ def process_airfoil(airfoil: Airfoil) -> Tuple[float, Callable[[float], float], 
         x_coords = np.append(x_coords, x_coords[0])
         y_coords = np.append(y_coords, y_coords[0])
     
+    # This can be added to increase the number of points/resolution of airfoil (not needed)
+    '''
     if len(x_coords) < 100:
         x_coords, y_coords = _add_points(x_coords, y_coords, target_points=100)
-    
+    '''
+
     surface_area = _calculate_surface_area(x_coords, y_coords)
     upper_x, upper_y, lower_x, lower_y = _separate_surfaces(x_coords, y_coords)
     camber_function = _create_camber_function(upper_x, upper_y, lower_x, lower_y)
@@ -120,7 +126,7 @@ def analyze_conceptual_wing(wing: ConceptualWing, N: int = 8, M: int = 4, rho: f
     estimation to provide total aircraft performance predictions. This comprehensive function
     integrates airfoil processing, wing geometry generation, VLM panel creation, inviscid force
     calculations, and viscous drag estimation to produce engineering-level estimates suitable
-    for preliminary aircraft design. The analysis assumes inviscid flow for lift and induced drag
+    for conceptual aircraft design. The analysis assumes inviscid flow for lift and induced drag
     calculations using VLM theory, then adds viscous effects through empirical correlations for
     skin friction and form drag. The function processes the airfoil coordinates to extract camber
     and thickness characteristics, generates a trapezoidal wing planform with the specified geometry
@@ -158,7 +164,7 @@ def analyze_conceptual_wing(wing: ConceptualWing, N: int = 8, M: int = 4, rho: f
         wing_span=wing.wing_span,
         taper_ratio=wing.taper_ratio,
         aoa_range=aoa_range,
-        airspeed=wing.airspeed or 30,
+        airspeed=wing.airspeed,
         N=N,
         M=M,
         rho=rho
@@ -896,6 +902,13 @@ if __name__ == "__main__":
     # Create a NACA 2412 airfoil with function or import from saved_airfoils.py
     #naca2412 = create_naca_4digit("2412")
     naca2412 = saved_airfoils.naca2412
+
+    # Set to true to get graphs
+    plot_results = False
+
+    # Determine meshing for VLM analysis
+    N = 8  # Number of spanwise stations
+    M = 4  # Number of chordwise panels per spanwise station
     
     # Define a conceptual wing with realistic parameters
     wing = ConceptualWing(
@@ -910,10 +923,11 @@ if __name__ == "__main__":
     )
     
     # Perform complete aerodynamic analysis including both inviscid and viscous effects
-    analyzed_wing = analyze_conceptual_wing(wing, N=8, M=4)
+    analyzed_wing = analyze_conceptual_wing(wing, N, M)
     
     # Create comprehensive performance plots
-    plot_wing_analysis(analyzed_wing)
+    if plot_results:
+        plot_wing_analysis(analyzed_wing)
     
     # Extract and display key performance metrics
     results = analyzed_wing.vlm_results
