@@ -968,14 +968,127 @@ if __name__ == "__main__":
         # Conduct a parametric study varying aspect ratio and taper ratio
         
         if parameter == "taper_ratio":
-            tr_min = 0
-            tr_max = 1
-            num_points = 11
-            taper_ratios = np.linspace(tr_min,tr_max,num_points)
+            tr_min = 0.3
+            tr_max = 1.0
+            num_points = 8
+            taper_ratios = np.linspace(tr_min, tr_max, num_points)
+            
+            # Set to constant angle of attack for parametric study
             wing.aoa_min = cruise_alpha
             wing.aoa_max = cruise_alpha
             wing.aoa_diff = 1.0
 
-            for taper_ratio in taper_ratios:
+            # Initialize storage arrays for parametric study results
+            CL_values = []
+            CDi_values = []
+            CD_parasitic_values = []
+            CD_total_values = []
+            L_over_D_values = []
+            CM_values = []
+            CL_alpha_values = []
+            aspect_ratios = []
+            root_chords = []
+            tip_chords = []
+
+            print(f"\nParametric Study: Taper Ratio Variation at α = {cruise_alpha}°")
+            print("=" * 60)
+
+            for i, taper_ratio in enumerate(taper_ratios):
                 wing.taper_ratio = taper_ratio
                 analyzed_wing = analyze_conceptual_wing(wing, N, M)
+                
+                # Extract results (single point since we're at constant alpha)
+                results = analyzed_wing.vlm_results
+                CL_values.append(results.CL[0])
+                CDi_values.append(results.CDi[0])
+                CD_parasitic_values.append(analyzed_wing.CD_parasitic)
+                CD_total_values.append(results.CDi[0] + analyzed_wing.CD_parasitic)
+                L_over_D_values.append(results.CL[0] / (results.CDi[0] + analyzed_wing.CD_parasitic))
+                CM_values.append(results.CM[0])
+                CL_alpha_values.append(results.CL_alpha)
+                
+                # Calculate geometric parameters
+                aspect_ratio = wing.wing_span**2 / wing.wing_area
+                mean_chord = wing.wing_area / wing.wing_span
+                root_chord = 2 * wing.wing_area / (wing.wing_span * (1 + taper_ratio))
+                tip_chord = taper_ratio * root_chord
+                
+                aspect_ratios.append(aspect_ratio)
+                root_chords.append(root_chord)
+                tip_chords.append(tip_chord)
+                
+                print(f"  λ = {taper_ratio:.2f}: CL = {CL_values[-1]:.3f}, "
+                      f"CD_total = {CD_total_values[-1]:.4f}, L/D = {L_over_D_values[-1]:.1f}")
+
+            # Create comprehensive parametric study plots
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 8))
+            
+            # Plot 1: Aerodynamic Coefficients vs Taper Ratio
+            ax1.plot(taper_ratios, CL_values, 'bo-', linewidth=2, markersize=6, label='CL')
+            ax1_twin = ax1.twinx()
+            ax1_twin.plot(taper_ratios, CM_values, 'gs-', linewidth=2, markersize=6, label='CM')
+            ax1.set_xlabel('Taper Ratio (λ)')
+            ax1.set_ylabel('Lift Coefficient (CL)', color='b')
+            ax1_twin.set_ylabel('Moment Coefficient (CM)', color='g')
+            ax1.set_title(f'Aerodynamic Coefficients vs Taper Ratio (α = {cruise_alpha}°)')
+            ax1.grid(True, alpha=0.3)
+            ax1.tick_params(axis='y', labelcolor='b')
+            ax1_twin.tick_params(axis='y', labelcolor='g')
+            
+            # Plot 2: Drag Breakdown vs Taper Ratio
+            ax2.plot(taper_ratios, CDi_values, 'ro-', linewidth=2, markersize=6, label='CDi (Induced)')
+            ax2.plot(taper_ratios, CD_parasitic_values, 'g^-', linewidth=2, markersize=6, label='CD0 (Parasitic)')
+            ax2.plot(taper_ratios, CD_total_values, 'ks-', linewidth=2, markersize=6, label='CD (Total)')
+            ax2.set_xlabel('Taper Ratio (λ)')
+            ax2.set_ylabel('Drag Coefficient')
+            ax2.set_title('Drag Component Breakdown vs Taper Ratio')
+            ax2.grid(True, alpha=0.3)
+            ax2.legend()
+            
+            # Plot 3: L/D Performance vs Taper Ratio
+            ax3.plot(taper_ratios, L_over_D_values, 'mo-', linewidth=2, markersize=6)
+            ax3.set_xlabel('Taper Ratio (λ)')
+            ax3.set_ylabel('Lift-to-Drag Ratio (L/D)')
+            ax3.set_title('Aerodynamic Efficiency vs Taper Ratio')
+            ax3.grid(True, alpha=0.3)
+            
+            # Find and annotate maximum L/D
+            max_ld_idx = np.argmax(L_over_D_values)
+            optimal_taper = taper_ratios[max_ld_idx]
+            max_ld = L_over_D_values[max_ld_idx]
+            ax3.annotate(f'Max L/D = {max_ld:.1f}\nλ = {optimal_taper:.2f}',
+                        xy=(optimal_taper, max_ld),
+                        xytext=(10, 10), textcoords='offset points',
+                        bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7),
+                        arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0'))
+            
+            # Plot 4: Wing Geometry vs Taper Ratio
+            ax4.plot(taper_ratios, root_chords, 'b^-', linewidth=2, markersize=6, label='Root Chord')
+            ax4.plot(taper_ratios, tip_chords, 'rs-', linewidth=2, markersize=6, label='Tip Chord')
+            ax4_twin2 = ax4.twinx()
+            ax4_twin2.plot(taper_ratios, CL_alpha_values, 'go-', linewidth=2, markersize=6, label='CL_α')
+            ax4.set_xlabel('Taper Ratio (λ)')
+            ax4.set_ylabel('Chord Length (m)', color='k')
+            ax4_twin2.set_ylabel('Lift Curve Slope (CL_α) [/rad]', color='g')
+            ax4.set_title('Wing Geometry & Lift Characteristics vs Taper Ratio')
+            ax4.grid(True, alpha=0.3)
+            ax4.legend(loc='upper left')
+            ax4_twin2.legend(loc='upper right')
+            ax4_twin2.tick_params(axis='y', labelcolor='g')
+            
+            plt.suptitle(f'Parametric Study: Taper Ratio Effects\n'
+                         f'Wing: {wing.airfoil.name}, AR = {aspect_ratios[0]:.1f}, '
+                         f'V = {wing.airspeed} m/s, α = {cruise_alpha}°', fontsize=14)
+            plt.tight_layout()
+            
+            # Print parametric study summary
+            print(f"\nParametric Study Summary:")
+            print(f"  Optimal taper ratio for L/D: λ = {optimal_taper:.2f}")
+            print(f"  Maximum L/D achieved: {max_ld:.1f}")
+            print(f"  L/D improvement over λ=1.0: {((max_ld/L_over_D_values[-1])-1)*100:.1f}%")
+            print(f"  CL range: {min(CL_values):.3f} to {max(CL_values):.3f}")
+            print(f"  CD_total range: {min(CD_total_values):.4f} to {max(CD_total_values):.4f}")
+            print(f"  Parasitic drag range: {min(CD_parasitic_values):.5f} to {max(CD_parasitic_values):.5f}")
+            
+            if plot_results:
+                plt.show()
