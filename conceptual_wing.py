@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d, UnivariateSpline
 import saved_airfoils
 
 
-# Set parameters at the bottom of the file
+# Set parameters at the bottom of the file, with love from Kyle (dog lover)
 
 
 @dataclass
