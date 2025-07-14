@@ -904,12 +904,15 @@ if __name__ == "__main__":
     naca2412 = saved_airfoils.naca2412
 
     # Set to true to get graphs
-    plot_results = False
+    plot_results = True
+    parametric_study = True
+    parameter = "taper_ratio"
 
     # Determine meshing for VLM analysis
     N = 8  # Number of spanwise stations
     M = 4  # Number of chordwise panels per spanwise station
-    
+    cruise_alpha = 3.0 # degrees
+
     # Define a conceptual wing with realistic parameters
     wing = ConceptualWing(
         airfoil=naca2412,
@@ -921,41 +924,58 @@ if __name__ == "__main__":
         aoa_diff=1.0, # deg
         airspeed=35.7632 # m/s (80 mph)
     )
-    
-    # Perform complete aerodynamic analysis including both inviscid and viscous effects
-    analyzed_wing = analyze_conceptual_wing(wing, N, M)
-    
-    # Create comprehensive performance plots
-    if plot_results:
-        plot_wing_analysis(analyzed_wing)
-    
-    # Extract and display key performance metrics
-    results = analyzed_wing.vlm_results
-    print(f"\nDetailed Performance Analysis:")
-    print(f"  Aircraft Configuration:")
-    print(f"    Airfoil: {analyzed_wing.airfoil.name}")
-    print(f"    Wing area: {analyzed_wing.wing_area:.1f} m²")
-    print(f"    Wing span: {analyzed_wing.wing_span:.1f} m") 
-    print(f"    Aspect ratio: {analyzed_wing.wing_span**2/analyzed_wing.wing_area:.1f}")
-    print(f"    Taper ratio: {analyzed_wing.taper_ratio:.2f}")
-    print(f"    Mean chord: {analyzed_wing.wing_area/analyzed_wing.wing_span:.2f} m")
-    print(f"  Aerodynamic Characteristics:")
-    print(f"    Zero-lift AoA: {results.alpha_L0:.2f}°")
-    print(f"    Lift curve slope: {results.CL_alpha:.3f} /rad ({np.rad2deg(results.CL_alpha):.3f} /deg)")
-    print(f"    Parasitic drag coefficient: {analyzed_wing.CD_parasitic:.5f}")
-    print(f"    Maximum total L/D: {max([cl/(cdi + analyzed_wing.CD_parasitic) for cl, cdi in zip(results.CL, results.CDi)]):.1f}")
-    
-    # Demonstrate how to access results for further analysis
-    cruise_alpha_idx = 5  # Example: 6th angle of attack point
-    cruise_alpha = results.alpha_degrees[cruise_alpha_idx]
-    cruise_CL = results.CL[cruise_alpha_idx]
-    cruise_CDi = results.CDi[cruise_alpha_idx]
-    cruise_CD_total = cruise_CDi + analyzed_wing.CD_parasitic
-    
-    print(f"  Example Cruise Condition (α = {cruise_alpha}°):")
-    print(f"    CL = {cruise_CL:.3f}")
-    print(f"    CDi = {cruise_CDi:.5f}")
-    print(f"    CD_parasitic = {analyzed_wing.CD_parasitic:.5f}")
-    print(f"    CD_total = {cruise_CD_total:.5f}")
-    print(f"    L/D = {cruise_CL/cruise_CD_total:.1f}")
-    print(f"    Parasitic drag fraction: {analyzed_wing.CD_parasitic/cruise_CD_total*100:.1f}%")
+
+    if plot_results and not parametric_study:
+        
+        # Perform complete aerodynamic analysis including both inviscid and viscous effects
+        analyzed_wing = analyze_conceptual_wing(wing, N, M)
+        
+        # Create comprehensive performance plots
+        if plot_results:
+            plot_wing_analysis(analyzed_wing)
+        
+        # Extract and display key performance metrics
+        results = analyzed_wing.vlm_results
+        print(f"\nDetailed Performance Analysis:")
+        print(f"  Aircraft Configuration:")
+        print(f"    Airfoil: {analyzed_wing.airfoil.name}")
+        print(f"    Wing area: {analyzed_wing.wing_area:.1f} m²")
+        print(f"    Wing span: {analyzed_wing.wing_span:.1f} m") 
+        print(f"    Aspect ratio: {analyzed_wing.wing_span**2/analyzed_wing.wing_area:.1f}")
+        print(f"    Taper ratio: {analyzed_wing.taper_ratio:.2f}")
+        print(f"    Mean chord: {analyzed_wing.wing_area/analyzed_wing.wing_span:.2f} m")
+        print(f"  Aerodynamic Characteristics:")
+        print(f"    Zero-lift AoA: {results.alpha_L0:.2f}°")
+        print(f"    Lift curve slope: {results.CL_alpha:.3f} /rad ({np.rad2deg(results.CL_alpha):.3f} /deg)")
+        print(f"    Parasitic drag coefficient: {analyzed_wing.CD_parasitic:.5f}")
+        print(f"    Maximum total L/D: {max([cl/(cdi + analyzed_wing.CD_parasitic) for cl, cdi in zip(results.CL, results.CDi)]):.1f}")
+        
+        # Demonstrate how to access results for further analysis
+        cruise_alpha_idx = np.argmin(np.abs(np.array(results.alpha_degrees) - cruise_alpha))
+        cruise_CL = results.CL[cruise_alpha_idx]
+        cruise_CDi = results.CDi[cruise_alpha_idx]
+        cruise_CD_total = cruise_CDi + analyzed_wing.CD_parasitic
+        
+        print(f"  Example Cruise Condition (α = {cruise_alpha}°):")
+        print(f"    CL = {cruise_CL:.3f}")
+        print(f"    CDi = {cruise_CDi:.5f}")
+        print(f"    CD_parasitic = {analyzed_wing.CD_parasitic:.5f}")
+        print(f"    CD_total = {cruise_CD_total:.5f}")
+        print(f"    L/D = {cruise_CL/cruise_CD_total:.1f}")
+        print(f"    Parasitic drag fraction: {analyzed_wing.CD_parasitic/cruise_CD_total*100:.1f}%")
+
+    elif parametric_study:
+        # Conduct a parametric study varying aspect ratio and taper ratio
+        
+        if parameter == "taper_ratio":
+            tr_min = 0
+            tr_max = 1
+            num_points = 11
+            taper_ratios = np.linspace(tr_min,tr_max,num_points)
+            wing.aoa_min = cruise_alpha
+            wing.aoa_max = cruise_alpha
+            wing.aoa_diff = 1.0
+
+            for taper_ratio in taper_ratios:
+                wing.taper_ratio = taper_ratio
+                analyzed_wing = analyze_conceptual_wing(wing, N, M)
