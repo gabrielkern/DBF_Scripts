@@ -2,6 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
+# Needs fixing w/regard to adding dihedral and sweep
+
+# READ BEFORE USE:
+# This code does not account for fuselage, viscous effects, or compressibility effects. Use with care
+
 # Geometry generation
 def generate_geometry(
     root_chord_length: float,
