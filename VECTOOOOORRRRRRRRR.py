@@ -20,6 +20,26 @@ BATTERY_CELLS = 4 #number of cells in series
 MOTOCALC_FILEPATH = '201_14x12.csv'
 XFLR5_FILEPATH = 'Lark_8lb_VLMvisc.csv'
 
+
+
+"""
+    To get thrust, call calculate_thrust(vel_fps, thrust_interp), where
+    vel_fps is the velocity in feet per second and thrust_interp is a constant. 
+    bring thrust_interp into functions
+
+    To get battery charge, call calculate_charge(current_charge, vel_fps, dt, batt_interp),
+    where current_charge is the current battery charge in mAh, vel_fps is the
+    velocity in feet per second, dt is the timestep in seconds, and batt_interp
+    is a constant. bring battery_interp into functions
+
+    for xflr data you need to run the interp once then bring in coeff_interp into functions
+    results = xflr_results(interpolators, "Cl", 0.3778)
+    this will ouput correspoding other two values of CL, CD, alpha
+    
+    """
+
+
+
 # Calculate remaining parameters
 Mass = WEIGHT / GRAVITY # slugs
 
@@ -100,7 +120,7 @@ def calculate_thrust(vel_fps:float, thrust_interp) -> float:
     vel_mph = vel_fps * 0.681818 # convert ft/s to mph
     return ((thrust_interp(vel_mph)) * 0.0625) # convert oz to lbs
 
-def xflr_dat(filename,name,value):
+def xflr_interp(filename):
     # --- read the polar -------------------------------------------------
     df = pd.read_csv(
     filename,
@@ -112,40 +132,39 @@ def xflr_dat(filename,name,value):
     # --- convert strings to numbers (just in case) ----------------------
     df = df.apply(pd.to_numeric, errors="coerce")
 
-    cd_of_cl = interp1d(df["CL"], df["CD"], kind='cubic')
-    alpha_of_cl = interp1d(df["CL"], df["alpha"], kind='cubic')
-    cl_of_cd = interp1d(df["CD"], df["CL"], kind='cubic')
-    alpha_of_cd = interp1d(df["CD"], df["alpha"], kind='cubic')
-    cd_of_alpha = interp1d(df["alpha"], df["CD"], kind='cubic')
-    cl_of_alpha = interp1d(df["alpha"], df["CL"], kind='cubic')
+    coeff_interp = {
+    'cl_of_alpha': interp1d(df["alpha"], df["CL"], kind='cubic', fill_value='extrapolate'),
+    'cd_of_alpha': interp1d(df["alpha"], df["CD"], kind='cubic', fill_value='extrapolate'),
+    'cd_of_cl':    interp1d(df["CL"], df["CD"], kind='cubic', fill_value='extrapolate'),
+    'alpha_of_cl': interp1d(df["CL"], df["alpha"], kind='cubic', fill_value='extrapolate')
+}
+    return  coeff_interp
 
-    if name == "CL" or "cl" or "Cl" or "cL":
-        CD = cd_of_cl(value)
-        alpha = alpha_of_cl(value)
-        return CD,alpha
-    if name == "CD" or "cd" or 'Cd' or "cD":
-        CL = cl_of_cd(value)
-        alpha = alpha_of_cd(value)
-        return CL, alpha
-    if name == "alpha" or "Alpha":
-        CL = cl_of_alpha(value)
-        CD = cd_of_alpha(value)
-        return CL,CD
+def xflr_results(interpolators,name,value):
+    name = name.lower()  # Normalize to lowercase for easier matching
+
+    if name == "cl":
+        CD = interpolators['cd_of_cl'](value)
+        alpha = interpolators['alpha_of_cl'](value)
+        return float(CD), float(alpha)
+
+    elif name == "cd":
+        # You need to define these interpolators first
+        CL = interpolators['cl_of_cd'](value)
+        alpha = interpolators['alpha_of_cd'](value)
+        return float(CL), float(alpha)
+
+    elif name == "alpha":
+        CL = interpolators['cl_of_alpha'](value)
+        CD = interpolators['cd_of_alpha'](value)
+
+        return float(CL), float(CD)
+
+    else:
+        raise ValueError("name must be one of: 'CL', 'CD', 'alpha'")
 
 # Running the file:
 if __name__ == '__main__':
-    
-    """
-    To get thrust, call calculate_thrust(vel_fps, thrust_interp), where
-    vel_fps is the velocity in feet per second and thrust_interp is a constant.
-
-    To get battery charge, call calculate_charge(current_charge, vel_fps, dt, batt_interp),
-    where current_charge is the current battery charge in mAh, vel_fps is the
-    velocity in feet per second, dt is the timestep in seconds, and batt_interp
-    is a constant.
-
-    
-    """
 
     # First get all the constant parameters into a structured dictionary
     constants = {
