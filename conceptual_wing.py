@@ -901,7 +901,7 @@ def _calculate_lift_curve_slope(alpha_degrees: np.ndarray, CL_values: List[float
 if __name__ == "__main__":
     # Create a NACA 2412 airfoil with function or import from saved_airfoils.py
     #naca2412 = create_naca_4digit("2412")
-    naca2412 = saved_airfoils.naca2412
+    naca2412 = saved_airfoils.NACA2412
 
     # Set to true to get graphs
     plot_results = True
