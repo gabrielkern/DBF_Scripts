@@ -21,7 +21,6 @@ MOTOCALC_FILEPATH = '201_14x12.csv'
 XFLR5_FILEPATH = 'Lark_8lb_VLMvisc.csv'
 
 
-
 """
     To get thrust, call calculate_thrust(vel_fps, thrust_interp), where
     vel_fps is the velocity in feet per second and thrust_interp is a constant. 
@@ -32,8 +31,8 @@ XFLR5_FILEPATH = 'Lark_8lb_VLMvisc.csv'
     velocity in feet per second, dt is the timestep in seconds, and batt_interp
     is a constant. bring battery_interp into functions
 
-    for xflr data you need to run the interp once then bring in coeff_interp into functions
-    results = xflr_results(interpolators, "Cl", 0.3778)
+    For xflr data you need to run the interp once then bring in coeff_interp into functions
+    results = xflr_results(coeff_interp, "Cl", 0.3778)
     this will ouput correspoding other two values of CL, CD, alpha
     
     """
@@ -189,9 +188,9 @@ if __name__ == '__main__':
 
     # Third set up initial state as well as the state directory
     state = {
-        'velocity': 0.0, #ft/s
-        'position': 0.0, #ft
-        'acceleration': 0.0, #ft/s^2
+        'velocity': [0.0,0.0], #ft/s
+        'position': [0.0,0.0], #ft
+        'acceleration': [0.0,0.0], #ft/s^2
         'battery_charge': constants['battery_capacity'], #mAh
         'time': 0.0, #seconds
         'turn_angle': 0.0, #degrees
