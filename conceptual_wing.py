@@ -5,6 +5,22 @@ from typing import List, Optional, Callable, Tuple
 from dataclasses import dataclass
 from scipy.interpolate import interp1d, UnivariateSpline
 import saved_airfoils
+import os
+import json
+import tempfile
+from pyvlm import LatticeSystem
+from pyvlm.classes.latticesurface import LatticeSurface
+from pyvlm.classes.latticesection import LatticeSection
+
+# Try to import pytornado - gracefully handle if not available
+try:
+    from pytornado.stdfun.run import StdRunArgs, standard_run
+    PYTORNADO_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: PyTornado not available ({e}). Will use original VLM solver.")
+    PYTORNADO_AVAILABLE = False
+    StdRunArgs = None
+    standard_run = None
 
 
 # Set parameters at the bottom of the file, with love from Kyle (dog lover)
@@ -119,6 +135,251 @@ def _calculate_thickness_ratio(upper_x: np.ndarray, upper_y: np.ndarray,
     return max_thickness
 
 
+def run_pytornado_vlm(wing: ConceptualWing, N: int, M: int, rho: float = 1.225) -> Optional[VLMResults]:
+    """
+    Run VLM analysis using pytornado package to compute aerodynamic coefficients.
+    
+    This function creates the necessary input files for pytornado, including aircraft geometry
+    and flight state definitions, then executes the VLM analysis and extracts results.
+    The wing geometry is constructed from the ConceptualWing parameters and the flight
+    conditions are set up for the specified angle of attack range.
+    
+    Args:
+        wing: ConceptualWing object containing geometry and flight parameters
+        N: Number of spanwise panels
+        M: Number of chordwise panels  
+        rho: Air density in kg/m³
+        
+    Returns:
+        VLMResults object with aerodynamic coefficients or None if analysis fails
+    """
+    if not PYTORNADO_AVAILABLE:
+        print("PyTornado package is not available. Cannot run PyTornado VLM analysis.")
+        return None
+        
+    try:
+        # Create temporary directory for pytornado files
+        temp_dir = tempfile.mkdtemp(prefix="pytornado_")
+        
+        # Calculate wing geometry parameters
+        semi_span = wing.wing_span / 2.0
+        root_chord = 2 * wing.wing_area / (wing.wing_span * (1 + wing.taper_ratio))
+        tip_chord = wing.taper_ratio * root_chord
+        
+        # Create wing geometry definition for pytornado
+        wing_geometry = {
+            "uid": "analysis_wing",
+            "symmetry": 2,  # Symmetric about XZ plane
+            "segments": [{
+                "uid": "wing_segment",
+                "vertices": {
+                    "a": [0.0, 0.0, 0.0],  # Root leading edge
+                    "b": [root_chord, 0.0, 0.0],  # Root trailing edge
+                    "c": [tip_chord, semi_span, 0.0],  # Tip trailing edge  
+                    "d": [0.0, semi_span, 0.0]  # Tip leading edge
+                },
+                "airfoils": {
+                    "inner": {"uid": wing.airfoil.name},
+                    "outer": {"uid": wing.airfoil.name}
+                }
+            }]
+        }
+        
+        # Create aircraft definition file
+        aircraft_data = {
+            "aircraft": {
+                "uid": "conceptual_wing_analysis",
+                "wings": [wing_geometry]
+            }
+        }
+        
+        aircraft_file = os.path.join(temp_dir, "aircraft.json")
+        with open(aircraft_file, 'w') as f:
+            json.dump(aircraft_data, f, indent=2)
+        
+        # Set up angle of attack range
+        alpha_range = np.arange(
+            wing.aoa_min or 0,
+            (wing.aoa_max or 10) + (wing.aoa_diff or 1.0),
+            wing.aoa_diff or 1.0
+        )
+        
+        # Initialize result storage
+        CL_results = []
+        CDi_results = []
+        CM_results = []
+        alpha_degrees = []
+        
+        print(f"\nRunning PyTornado VLM Analysis:")
+        print(f"  Wing geometry: {root_chord:.3f}m x {tip_chord:.3f}m, span {wing.wing_span:.3f}m")
+        print(f"  Panel mesh: {N} spanwise x {M} chordwise")
+        print(f"  Analyzing {len(alpha_range)} angle of attack points...")
+        
+        # Run analysis for each angle of attack
+        for alpha in alpha_range:
+            # Create flight state file for this alpha
+            state_data = {
+                "aero": {
+                    "airspeed": wing.airspeed or 30,
+                    "density": rho,
+                    "altitude": 0,
+                    "alpha": float(alpha),
+                    "beta": 0,
+                    "mach": None,
+                    "rate_P": 0,
+                    "rate_Q": 0,
+                    "rate_R": 0
+                }
+            }
+            
+            state_file = os.path.join(temp_dir, f"state_alpha_{alpha:.1f}.json")
+            with open(state_file, 'w') as f:
+                json.dump(state_data, f, indent=2)
+            
+            # Create settings file for this analysis
+            settings_data = {
+                "aircraft": aircraft_file,
+                "state": state_file,
+                "vlm_autopanels_c": M,
+                "vlm_autopanels_s": N,
+                "save_results": {
+                    "global": ["forces", "aeroperformance"],
+                    "panelwise": []
+                },
+                "plot": {
+                    "geometry": {"show": False, "save": False},
+                    "lattice": {"show": False, "save": False},
+                    "results": {"show": False, "save": False}
+                }
+            }
+            
+            settings_file = os.path.join(temp_dir, f"settings_alpha_{alpha:.1f}.json")
+            with open(settings_file, 'w') as f:
+                json.dump(settings_data, f, indent=2)
+            
+            # Run pytornado analysis
+            args = StdRunArgs()
+            args.run = settings_file
+            args.verbose = False
+            args.quiet = True
+            
+            try:
+                results = standard_run(args)
+                
+                # Extract aerodynamic coefficients from results
+                if results and 'state' in results and hasattr(results['state'], 'results'):
+                    # Get force coefficients from results
+                    state_results = results['state'].results
+                    
+                    # Extract CL, CD, CM from pytornado results
+                    CL = float(state_results.get('CL', 0.0))
+                    CDi = float(state_results.get('CDi', 0.0))  # Induced drag
+                    CM = float(state_results.get('CM', 0.0))
+                    
+                    CL_results.append(CL)
+                    CDi_results.append(CDi)
+                    CM_results.append(CM)
+                    alpha_degrees.append(float(alpha))
+                    
+                    print(f"    α = {alpha:5.1f}°: CL = {CL:6.3f}, CDi = {CDi:7.4f}, CM = {CM:7.4f}")
+                else:
+                    print(f"    α = {alpha:5.1f}°: Analysis failed - no valid results")
+                    
+            except Exception as e:
+                print(f"    α = {alpha:5.1f}°: Analysis failed - {str(e)}")
+        
+        # Clean up temporary files
+        import shutil
+        shutil.rmtree(temp_dir)
+        
+        if len(CL_results) > 0:
+            # Calculate lift-to-drag ratios and lift curve properties
+            L_over_D = [cl/cdi if cdi > 1e-6 else 0 for cl, cdi in zip(CL_results, CDi_results)]
+            alpha_L0, CL_alpha = _calculate_lift_curve_slope(np.array(alpha_degrees), CL_results)
+            
+            print(f"\nPyTornado VLM Analysis Results:")
+            print(f"  Zero-lift AoA: {alpha_L0:.2f}°")
+            print(f"  Lift curve slope: {CL_alpha:.3f} /radian ({np.rad2deg(CL_alpha):.3f} /degree)")
+            
+            return VLMResults(
+                alpha_degrees=alpha_degrees,
+                CL=CL_results,
+                CDi=CDi_results,
+                CM=CM_results,
+                L_over_D=L_over_D,
+                alpha_L0=alpha_L0,
+                CL_alpha=CL_alpha
+            )
+        else:
+            print("PyTornado VLM analysis failed - no valid results obtained")
+            return None
+            
+    except Exception as e:
+        print(f"PyTornado VLM analysis failed: {str(e)}")
+        return None
+    
+
+def analyze_wing_with_pyvlm(wing: ConceptualWing) -> dict:
+    """
+    Analyze wing using PyVLM instead of custom VLM implementation.
+    """
+
+    # Extract wing parameters
+    root_chord = 2 * wing.wing_area / (wing.wing_span * (1 + wing.taper_ratio))
+    tip_chord = wing.taper_ratio * root_chord
+    semi_span = wing.wing_span / 2
+
+    # Create LatticeSystem
+    lsys = LatticeSystem(name=f"{wing.airfoil.name} Wing")
+
+    # Define wing reference values
+    lsys.set_ref_dims(sref=wing.wing_area, bref=wing.wing_span, cref=root_chord)
+
+    # Create wing surface
+    wing_surface = LatticeSurface(name="Main Wing", n_chordwise=8, c_space='cosine')
+    wing_surface.is_mirror = True
+
+    # Define wing sections
+    root_section = LatticeSection(y_le=0.0, chord=root_chord, twist=0.0, n_spanwise=20, s_space='cosine')
+    tip_section = LatticeSection(y_le=semi_span, chord=tip_chord, twist=0.0)
+
+    # Add sections to surface
+    wing_surface.add_section(root_section, tip_section)
+
+    # Add surface to system
+    lsys.add_surface(wing_surface)
+
+    # Create analysis cases for different angles of attack
+    alpha_range = np.arange(wing.aoa_min, wing.aoa_max + wing.aoa_diff, wing.aoa_diff)
+
+    for alpha in alpha_range:
+        # CORRECTED: Call add_case directly on the system object
+        lsys.add_case(
+            name=f"Alpha_{alpha:.1f}",
+            alpha=alpha,
+            velocity=wing.airspeed,
+            rho=1.225
+        )
+
+    # Run all cases
+    lsys.run_cases()
+
+    # Extract results
+    results = {}
+    for case_name, lres in lsys.results.items():
+        # Retrieve alpha from the case object stored in the system
+        alpha = lsys.cases[case_name].alpha
+        results[alpha] = {
+            'CL': lres.CL,
+            'CDi': lres.CDi,
+            'CM': lres.CMy,
+            'L': lres.L,
+            'Di': lres.Di
+        }
+
+    return results, lsys
+
+
 def analyze_conceptual_wing(wing: ConceptualWing, N: int = 8, M: int = 4, rho: float = 1.225) -> ConceptualWing:
     """
     Perform complete conceptual wing analysis using Vortex Lattice Method to determine aerodynamic
@@ -157,18 +418,53 @@ def analyze_conceptual_wing(wing: ConceptualWing, N: int = 8, M: int = 4, rho: f
         "diff": wing.aoa_diff or 1.0
     }
     
-    # Perform VLM analysis for inviscid aerodynamic coefficients
-    vlm_results = analyze_wing_vlm(
-        camber_function=camber_func,
-        wing_area=wing.wing_area,
-        wing_span=wing.wing_span,
-        taper_ratio=wing.taper_ratio,
-        aoa_range=aoa_range,
-        airspeed=wing.airspeed,
-        N=N,
-        M=M,
-        rho=rho
-    )
+    # NEW: Run PyTornado VLM analysis
+    print("\n" + "="*60)
+    print("USING PYTORNADO VLM SOLVER")
+    print("="*60)
+    
+    pytornado_results = run_pytornado_vlm(wing, N, M, rho)
+    
+    if pytornado_results is not None:
+        print("PyTornado VLM analysis completed successfully!")
+        vlm_results = pytornado_results
+    else:
+        results, lsys = analyze_wing_with_pyvlm(wing)
+        
+        # Convert results to VLMResults format
+        alpha_degrees = list(results.keys())
+        CL_list = [results[a]['CL'] for a in alpha_degrees]
+        CDi_list = [results[a]['CDi'] for a in alpha_degrees]
+        CM_list = [results[a]['CM'] for a in alpha_degrees]
+        
+        # Calculate derived quantities
+        L_over_D = [cl/cdi if cdi > 1e-6 else 0 for cl, cdi in zip(CL_list, CDi_list)]
+        alpha_L0, CL_alpha = _calculate_lift_curve_slope(alpha_degrees, CL_list)
+        
+        vlm_results = VLMResults(
+            alpha_degrees=alpha_degrees,
+            CL=CL_list,
+            CDi=CDi_list,
+            CM=CM_list,
+            L_over_D=L_over_D,
+            alpha_L0=alpha_L0,
+            CL_alpha=CL_alpha
+        )
+        
+    if results is None:
+        print("All of them suck. Analysis failed, falling back to original VLM solver...")
+        # Fallback to original VLM analysis for inviscid aerodynamic coefficients
+        vlm_results = analyze_wing_vlm(
+            camber_function=camber_func,
+            wing_area=wing.wing_area,
+            wing_span=wing.wing_span,
+            taper_ratio=wing.taper_ratio,
+            aoa_range=aoa_range,
+            airspeed=wing.airspeed,
+            N=N,
+            M=M,
+            rho=rho
+        )
     
     # Calculate parasitic drag coefficient using empirical methods
     CD_parasitic = calculate_parasitic_drag(
@@ -670,26 +966,36 @@ def _generate_wing_panels(
 ) -> List[Panel]:
     panels = []
     
+    # Set the "mesh", creating the breakdown of points in the spanwise and chordwise directions
     y_stations = np.linspace(0, semi_span, N + 1)
     x_stations = np.linspace(0, 1, M + 1)
     
+    # Creates panels for both left and right wings
     for wing_side in ['right', 'left']:
         y_multiplier = 1 if wing_side == 'right' else -1
         
+        # Loops over the spanwise stations
         for i in range(N):
             y1 = y_multiplier * y_stations[i]
             y2 = y_multiplier * y_stations[i + 1]
             
+            # Creates the relative positions of the chord, spanwise
             eta1 = abs(y1) / semi_span
             eta2 = abs(y2) / semi_span
+
+            # Identifies the local chord length
             chord1 = root_chord * (1 - (1 - tip_chord/root_chord) * eta1)
             chord2 = root_chord * (1 - (1 - tip_chord/root_chord) * eta2)
             
+            # Loops over the chordwise stations
             for j in range(M):
+                # Creates the normalized chord positions
                 x1_norm = x_stations[j]
                 x2_norm = x_stations[j + 1]
                 
+                # Calculated the actual position based on relative chordwise position and local chord length
                 x1_1 = x1_norm * chord1
+                # Calculates the z position based on the camber function
                 z1_1 = camber_function(x1_norm) * chord1
                 
                 x1_2 = x1_norm * chord2
@@ -701,6 +1007,7 @@ def _generate_wing_panels(
                 x2_1 = x2_norm * chord1
                 z2_1 = camber_function(x2_norm) * chord1
                 
+                # Form the corners based on the calculated panel geometry
                 corners = np.array([
                     [x1_1, y1, z1_1],
                     [x1_2, y2, z1_2],
@@ -708,13 +1015,17 @@ def _generate_wing_panels(
                     [x2_1, y1, z2_1]
                 ])
                 
+                # Create the locations of the endpoints of the bound vortex line
                 vortex_A = corners[0] + 0.25 * (corners[3] - corners[0])
                 vortex_B = corners[1] + 0.25 * (corners[2] - corners[1])
                 
+                # Create the control point location on each panel
                 cp_inner = corners[0] + 0.75 * (corners[3] - corners[0])
                 cp_outer = corners[1] + 0.75 * (corners[2] - corners[1])
+                # Midpoint is the control point position
                 control_point = (cp_inner + cp_outer) / 2.0
                 
+                # Vectors created between opposite corners, cross product gives normal vector
                 diag1 = corners[2] - corners[0]
                 diag2 = corners[3] - corners[1]
                 normal = np.cross(diag1, diag2)
@@ -726,6 +1037,7 @@ def _generate_wing_panels(
                 else:
                     normal = np.array([0, 0, 1])
                 
+                # Set area equal to half of the magnitude of the resulting parallelogram
                 area = 0.5 * normal_mag
                 local_chord = (chord1 + chord2) / 2.0
                 y_position = (y1 + y2) / 2.0
@@ -747,15 +1059,20 @@ def _generate_wing_panels(
 
 
 def _solve_vlm_system(panels: List[Panel], V_inf: float, alpha: float) -> np.ndarray:
+    # Set number to the amount of panels (NxM)
     n_panels = len(panels)
     
+    # Velocity vector and the unit vector
     V_inf_vec = V_inf * np.array([np.cos(alpha), 0, np.sin(alpha)])
     V_inf_unit = V_inf_vec / np.linalg.norm(V_inf_vec)
     
+    # Initialize the matrices to solve for the vortex strengths
     AIC = np.zeros((n_panels, n_panels))
     RHS = np.zeros(n_panels)
     
+    # Loop over each panel
     for i in range(n_panels):
+        # Right-hand side is the negative dot pro
         RHS[i] = -np.dot(V_inf_vec, panels[i].normal_vector)
         
         for j in range(n_panels):
@@ -774,6 +1091,16 @@ def _solve_vlm_system(panels: List[Panel], V_inf: float, alpha: float) -> np.nda
     except np.linalg.LinAlgError:
         print("Warning: Singular AIC matrix. Using least squares solution.")
         gamma_strengths = np.linalg.lstsq(AIC, RHS, rcond=None)[0]
+
+    # After building AIC and RHS:
+    print(f"AIC matrix condition number: {np.linalg.cond(AIC)}")
+    print(f"RHS range: [{np.min(RHS)}, {np.max(RHS)}]")
+    print(f"AIC diagonal mean: {np.mean(np.diag(AIC))}")
+    print(f"AIC off-diagonal mean: {np.mean(AIC[~np.eye(n_panels, dtype=bool)])}")
+
+    # After solving:
+    print(f"Gamma range: [{np.min(gamma_strengths)}, {np.max(gamma_strengths)}]")
+    print(f"Verification - max residual: {np.max(np.abs(AIC @ gamma_strengths - RHS))}")
     
     return gamma_strengths
 
@@ -901,11 +1228,13 @@ def _calculate_lift_curve_slope(alpha_degrees: np.ndarray, CL_values: List[float
 if __name__ == "__main__":
     # Create a NACA 2412 airfoil with function or import from saved_airfoils.py
     #naca2412 = create_naca_4digit("2412")
-    naca2412 = saved_airfoils.naca2412
+    naca2412 = saved_airfoils.NACA2412
+    mh20 = saved_airfoils.MH20
+    esa40 = saved_airfoils.ESA40
 
     # Set to true to get graphs
     plot_results = True
-    parametric_study = True
+    parametric_study = False
     parameter = "taper_ratio"
 
     # Determine meshing for VLM analysis
@@ -915,14 +1244,14 @@ if __name__ == "__main__":
 
     # Define a conceptual wing with realistic parameters
     wing = ConceptualWing(
-        airfoil=naca2412,
-        wing_area=0.3716, # m² (4ft^2)
-        wing_span=1.524, # m (5ft)
-        taper_ratio=0.4,
+        airfoil=mh20,
+        wing_area=0.497, # m²
+        wing_span=1.524, # m
+        taper_ratio=0.7,
         aoa_min=-2, # deg
         aoa_max=12, # deg
         aoa_diff=1.0, # deg
-        airspeed=35.7632 # m/s (80 mph)
+        airspeed=24.59 # m/s
     )
 
     if plot_results and not parametric_study:
