@@ -265,23 +265,24 @@ def calculate_aerodynamic_forces_and_coeffs(
 if __name__ == '__main__':
 
     # Set parameters
-    def twist_func(y_s): return 5.0 - 10.0 * y_s  
+    def twist_func(y_s): return 0.0 #5.0 - 10.0 * y_s  
     def camber_func(x_on_c, y_s): 
-        m = 0.06 - 0.04 * y_s; p = 0.4 
-        if x_on_c <= p: return (m / (p**2 + 1e-9)) * (2 * p * x_on_c - x_on_c**2)
-        else: return (m / ((1 - p)**2 + 1e-9)) * ((1 - 2 * p) + 2 * p * x_on_c - x_on_c**2)
-    def sweep_func(y_s): return 25.0 
-    def dihedral_func(y_s): return 25.0 * y_s**3
+        # m = 0.06 - 0.04 * y_s; p = 0.4 
+        # if x_on_c <= p: return (m / (p**2 + 1e-9)) * (2 * p * x_on_c - x_on_c**2)
+        # else: return (m / ((1 - p)**2 + 1e-9)) * ((1 - 2 * p) + 2 * p * x_on_c - x_on_c**2)
+        return 0.02
+    def sweep_func(y_s): return 0.0 #25.0 
+    def dihedral_func(y_s): return 0.0 #25.0 * y_s**3
 
-    root_chord_val = 2.0
-    span_b_val = 10.0
-    taper_ratio_val = 0.5
-    V_inf_val = 50.0
-    alpha_primary_deg_val = 5.0
-    alpha_min_deg_val = 0.0
-    alpha_max_deg_val = 6.0
-    alpha_separation = 0.5
-    rho_air_val = 1.225 
+    root_chord_val = 1.2564
+    span_b_val = 6.0
+    taper_ratio_val = 0.7
+    V_inf_val = 117.33
+    alpha_primary_deg_val = 3.0
+    alpha_min_deg_val = -2.0
+    alpha_max_deg_val = 12.0
+    alpha_separation = 1.0
+    rho_air_val = 0.0023
     N_span_val = 10
     M_chord_val = 3 
 
@@ -377,3 +378,18 @@ if __name__ == '__main__':
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust for main title
     plt.show()
+
+
+    '''
+    Perfect! I've completed the analysis of the geometry generation function and identified the key issues. Let me summarize what I found:
+
+  1. Incorrect dihedral calculation: The code uses incremental accumulation with tan(dihedral) instead of proper rigid body rotation
+  2. Missing Y-coordinate projection: The Y coordinate projection for dihedral is commented out
+  3. Extreme camber value: The 200% camber creates large Z-displacements that compound the problem
+
+  These issues explain why dihedral appears to be added even when dihedral_func returns 0. The flawed implementation can accumulate 
+  numerical errors and doesn't properly handle coordinate transformations.
+
+  The user now has a clear understanding of the root cause and the specific lines that need to be fixed to properly implement dihedral 
+  geometry.
+  '''

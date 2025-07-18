@@ -1,6 +1,6 @@
 from conceptual_wing import Airfoil
 
-naca2412 = Airfoil(
+NACA2412 = Airfoil(
     name="NACA2412",
     x_coordinates=[
         1.0000, 0.9500, 0.9000, 0.8000, 0.7000, 0.6000, 0.5000,
