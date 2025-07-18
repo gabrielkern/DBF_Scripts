@@ -6,9 +6,16 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import make_interp_spline
 
 # SET STATIC PARAMETERS
+LAP_ALTITUDE = 200 #ft
+CLIMB_ANGLE = 30 #deg
+WING_AREA = 4.44 #ft^2
+WEIGHT = 8.0 #lbs
+COEFF_FRICTION = 0.04 #unitless
 
+MOTOCALC_FILEPATH = '201_14x12.csv'
+XFLR5_FILEPATH = ''
 
-def thrust_data(csv_filepath:str) -> pd.DataFrame:
+def imported_data(csv_filepath:str) -> pd.DataFrame:
     """
     Function that pulls data from a MotoCalc csv file and returns thrust
     as a function of airspeed
@@ -52,6 +59,17 @@ def create_batt_interpolator(prop_data: pd.DataFrame):
         sorted_data['batt_amps']
     )
 
+def create_thrust_interpolator(prop_data: pd.DataFrame):
+    """
+    Creates an interpolation helper function for thrust vs. airspeed.
+    The purpose of this is so that interpolation can be done once, outside
+    """
+    sorted_data = prop_data.sort_values(by='airspeed_mph')
+    return make_interp_spline(
+        sorted_data['airspeed_mph'],
+        sorted_data['thrust_oz']
+    )
+
 def calculate_charge(current_charge:float,vel_mph:float, dt:float, batt_interp) -> float:
     """
     Calculates the new battery charge given usage at speed vel_mph and the data
@@ -65,27 +83,21 @@ def calculate_charge(current_charge:float,vel_mph:float, dt:float, batt_interp) 
     new_charge = current_charge - charge_used
     return max(new_charge, 0)  # Ensure change in charge isn't negative
 
+def calculate_thrust(vel_mph:float, thrust_interp) -> float:
+    """
+    Calculates the thrust at a given velocity using the thrust_interp function.
+    Inputs the velocity in mph and the thrust_interp function.
+    Returns the thrust in ounces.
+    """
+    return thrust_interp(vel_mph)
+
 # Running the file:
 if __name__ == '__main__':
-    propellor_data_file_path = "201_14x12.csv"
-    prop_data = thrust_data(propellor_data_file_path)
-    batt_interpolator = create_batt_interpolator(prop_data)
+    
+    # First get all the constant parameters into a structured dictionary
 
-    # 3. Use the function in a simulation loop.
-    initial_charge_mAh = 3000.0  # Example initial charge
-    time_step_s = 1.0           # Simulate 1-second intervals
-        
-    current_charge = initial_charge_mAh
-        
-    print(f"\nStarting simulation with {current_charge:.2f} mAh.")
-        
-    # Simulate flying at 50 mph for 10 steps (10 seconds)
-    for i in range(10):
-        airspeed = 3*(i**2) # Constant speed for this example
-        current_charge = calculate_charge(current_charge, airspeed, time_step_s, batt_interpolator)
-        print(f"After step {i+1}, charge is: {current_charge:.2f} mAh")
-            
-        if current_charge == 0:
-            print("Battery depleted!")
-            break
-
+    # Second create the interpolators with the imported MotoCalc data to be parsed
+    imported_dataframe = imported_data(MOTOCALC_FILEPATH)
+    batt_interp = create_batt_interpolator(imported_dataframe)
+    thrust_interp = create_thrust_interpolator(imported_dataframe)
+    print("Interpolators created successfully.")
