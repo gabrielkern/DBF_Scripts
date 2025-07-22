@@ -45,6 +45,6 @@ def xflr_results(interpolators,name,value):
     else:
         raise ValueError("name must be one of: 'CL', 'CD', 'alpha'")
 
-interpolators = xflr_interp("Lark_8lb_VLMvisc.csv")
+interpolators = xflr_interp("Lark8lbfull04m.csv")
 results = xflr_results(interpolators, "Cl", 0.3778)
 print("Results from CL:", results)
