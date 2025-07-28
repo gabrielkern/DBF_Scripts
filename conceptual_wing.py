@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import warnings
 from typing import List, Optional, Callable, Tuple
 from dataclasses import dataclass
-from scipy.interpolate import interp1d, UnivariateSpline
+from scipy.interpolate import interp1d
 import saved_airfoils
 
 
@@ -521,94 +521,6 @@ def _calculate_surface_area(x_coords: np.ndarray, y_coords: np.ndarray) -> float
     return surface_area
 
 
-def _add_points(x_coords: np.ndarray, y_coords: np.ndarray, target_points: int = 100) -> Tuple[np.ndarray, np.ndarray]:
-    le_idx = np.argmin(x_coords)
-    
-    upper_x_orig = x_coords[:le_idx + 1]
-    upper_y_orig = y_coords[:le_idx + 1]
-    
-    lower_x_orig = x_coords[le_idx:]
-    lower_y_orig = y_coords[le_idx:]
-    
-    upper_x_orig = upper_x_orig[::-1]
-    upper_y_orig = upper_y_orig[::-1]
-    
-    if len(lower_x_orig) > 1:
-        lower_x_orig = lower_x_orig[1:]
-        lower_y_orig = lower_y_orig[1:]
-    
-    n_upper = target_points // 2
-    n_lower = target_points - n_upper
-    
-    try:
-        upper_sort_idx = np.argsort(upper_x_orig)
-        lower_sort_idx = np.argsort(lower_x_orig)
-        
-        upper_x_sorted = upper_x_orig[upper_sort_idx]
-        upper_y_sorted = upper_y_orig[upper_sort_idx]
-        lower_x_sorted = lower_x_orig[lower_sort_idx]
-        lower_y_sorted = lower_y_orig[lower_sort_idx]
-        
-        upper_spline = UnivariateSpline(upper_x_sorted, upper_y_sorted, s=0, k=3)
-        lower_spline = UnivariateSpline(lower_x_sorted, lower_y_sorted, s=0, k=3)
-        
-        beta_upper = np.linspace(0, np.pi, n_upper)
-        x_new_upper = 0.5 * (1 - np.cos(beta_upper))
-        
-        beta_lower = np.linspace(0, np.pi, n_lower)
-        x_new_lower = 0.5 * (1 - np.cos(beta_lower))
-        
-        if not np.any(np.isclose(x_new_upper, 0, atol=1e-6)):
-            x_new_upper[0] = 0.0
-        if not np.any(np.isclose(x_new_lower, 0, atol=1e-6)):
-            x_new_lower[0] = 0.0
-        
-        y_new_upper = upper_spline(x_new_upper)
-        y_new_lower = lower_spline(x_new_lower)
-        
-        le_idx_upper = np.argmin(x_new_upper)
-        le_idx_lower = np.argmin(x_new_lower)
-        y_new_upper[le_idx_upper] = 0.0
-        y_new_lower[le_idx_lower] = 0.0
-        
-        x_coords_new = []
-        y_coords_new = []
-        
-        upper_reverse_idx = np.argsort(-x_new_upper)
-        for idx in upper_reverse_idx:
-            x_coords_new.append(x_new_upper[idx])
-            y_coords_new.append(y_new_upper[idx])
-        
-        lower_forward_idx = np.argsort(x_new_lower)
-        for i, idx in enumerate(lower_forward_idx):
-            if i == 0:
-                continue
-            x_coords_new.append(x_new_lower[idx])
-            y_coords_new.append(y_new_lower[idx])
-        
-        return np.array(x_coords_new), np.array(y_coords_new)
-        
-    except Exception as e:
-        warnings.warn(f"Failed to create splines for point interpolation: {e}. Using linear interpolation instead.")
-        
-        distances = np.cumsum(np.sqrt(np.diff(x_coords)**2 + np.diff(y_coords)**2))
-        distances = np.insert(distances, 0, 0)
-        distances_norm = distances / distances[-1]
-        t_new = np.linspace(0, 1, target_points)
-        
-        x_interp = interp1d(distances_norm, x_coords, kind='linear')
-        y_interp = interp1d(distances_norm, y_coords, kind='linear')
-        
-        x_new = x_interp(t_new)
-        y_new = y_interp(t_new)
-        
-        le_idx = np.argmin(x_new)
-        x_new[le_idx] = 0.0
-        y_new[le_idx] = 0.0
-        
-        return x_new, y_new
-
-
 def _separate_surfaces(x_coords: np.ndarray, y_coords: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     le_idx = np.argmin(x_coords)
     
@@ -743,19 +655,27 @@ def _generate_wing_panels(
                 
                 panels.append(panel)
     
+    # After generating panels:
+    panel = panels[0]
+    print(f"Panel 0 bound vortex length: {np.linalg.norm(panel.vortex_B - panel.vortex_A)}")
+    print(f"Control point to vortex distance: {np.linalg.norm(panel.control_point - panel.vortex_A)}")
+    
     return panels
 
 
 def _solve_vlm_system(panels: List[Panel], V_inf: float, alpha: float) -> np.ndarray:
     n_panels = len(panels)
     
+    # Create a directional vector for the oncoming flow (plus unit version of it)
     V_inf_vec = V_inf * np.array([np.cos(alpha), 0, np.sin(alpha)])
     V_inf_unit = V_inf_vec / np.linalg.norm(V_inf_vec)
     
+    # Initialize the AIC and RHS matrices
     AIC = np.zeros((n_panels, n_panels))
     RHS = np.zeros(n_panels)
     
     for i in range(n_panels):
+        # Dot product between the oncoming velocity vector and the normal vector of the panel
         RHS[i] = -np.dot(V_inf_vec, panels[i].normal_vector)
         
         for j in range(n_panels):
@@ -766,6 +686,14 @@ def _solve_vlm_system(panels: List[Panel], V_inf: float, alpha: float) -> np.nda
                 V_inf_unit,
                 gamma=1.0
             )
+
+            # In _solve_vlm_system, after calculating velocity_induced:
+            if i == 0 and j == 0:  # First panel self-influence
+                print(f"Panel 0 control point: {panels[0].control_point}")
+                print(f"Panel 0 vortex A: {panels[0].vortex_A}")
+                print(f"Panel 0 vortex B: {panels[0].vortex_B}")
+                print(f"Induced velocity: {velocity_induced}")
+                print(f"Normal vector: {panels[0].normal_vector}")
             
             AIC[i, j] = np.dot(velocity_induced, panels[i].normal_vector)
     
@@ -824,6 +752,14 @@ def _vortex_segment_velocity(
     factor = (gamma / (4 * np.pi)) * (
         np.dot(r_seg, r1) / r1_mag - np.dot(r_seg, r2) / r2_mag
     ) / cross_mag_sq
+
+    # In _vortex_segment_velocity, before returning:
+    if np.linalg.norm(factor * r1_cross_r2) < 1e-10:
+        print(f"Zero velocity detected!")
+        print(f"r1: {r1}, r1_mag: {r1_mag}")
+        print(f"r2: {r2}, r2_mag: {r2_mag}")
+        print(f"Cross product: {r1_cross_r2}")
+        print(f"Cross mag squared: {cross_mag_sq}")
     
     return factor * r1_cross_r2
 
@@ -905,7 +841,7 @@ if __name__ == "__main__":
 
     # Set to true to get graphs
     plot_results = True
-    parametric_study = True
+    parametric_study = False
     parameter = "taper_ratio"
 
     # Determine meshing for VLM analysis
