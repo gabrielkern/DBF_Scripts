@@ -233,6 +233,20 @@ def analyze_wing_vlm(
     panels = _generate_wing_panels(
         camber_function, root_chord, tip_chord, semi_span, N, M
     )
+
+    '''# After generating panels:
+    panel = panels[0]
+    print(f"Panel 0 bound vortex length: {np.linalg.norm(panel.vortex_B - panel.vortex_A)}")
+    print(f"Control point to vortex distance: {np.linalg.norm(panel.control_point - panel.vortex_A)}")
+
+    # After generating all panels:
+    print(f"\n=== Panel Symmetry Check ===")
+    # Find corresponding left/right panels
+    for i in range(32):  # First half should be left wing
+        left_panel = panels[i]
+        right_panel = panels[i + 32]  # Assuming symmetric ordering
+        print(f"Panel {i} Y: {left_panel.control_point[1]:.4f}, "
+            f"Panel {i+32} Y: {right_panel.control_point[1]:.4f}")'''
     
     print(f"Generated {len(panels)} panels ({N} spanwise × {M} chordwise × 2 wings)")
     
@@ -251,6 +265,14 @@ def analyze_wing_vlm(
     for alpha_deg in alpha_degrees:
         alpha_rad = np.deg2rad(alpha_deg)
         gamma_strengths = _solve_vlm_system(panels, airspeed, alpha_rad)
+
+        '''# After solving for gamma_strengths:
+        print(f"\n=== Gamma Distribution ===")
+        print(f"Root panels gamma: {gamma_strengths[0:4]}")  # First chordwise strip
+        print(f"Tip panels gamma: {gamma_strengths[-4:]}")   # Last chordwise strip
+        print(f"Left wing avg: {np.mean(gamma_strengths[:32])}")
+        print(f"Right wing avg: {np.mean(gamma_strengths[32:])}")'''
+
         CL, CDi, CM = _calculate_coefficients(
             panels, gamma_strengths, airspeed, alpha_rad, rho, wing_area, root_chord
         )
@@ -654,12 +676,7 @@ def _generate_wing_panels(
                 )
                 
                 panels.append(panel)
-    
-    # After generating panels:
-    panel = panels[0]
-    print(f"Panel 0 bound vortex length: {np.linalg.norm(panel.vortex_B - panel.vortex_A)}")
-    print(f"Control point to vortex distance: {np.linalg.norm(panel.control_point - panel.vortex_A)}")
-    
+
     return panels
 
 
@@ -687,21 +704,36 @@ def _solve_vlm_system(panels: List[Panel], V_inf: float, alpha: float) -> np.nda
                 gamma=1.0
             )
 
-            # In _solve_vlm_system, after calculating velocity_induced:
+            '''# In _solve_vlm_system, after calculating velocity_induced:
             if i == 0 and j == 0:  # First panel self-influence
                 print(f"Panel 0 control point: {panels[0].control_point}")
                 print(f"Panel 0 vortex A: {panels[0].vortex_A}")
                 print(f"Panel 0 vortex B: {panels[0].vortex_B}")
                 print(f"Induced velocity: {velocity_induced}")
-                print(f"Normal vector: {panels[0].normal_vector}")
+                print(f"Normal vector: {panels[0].normal_vector}")'''
             
             AIC[i, j] = np.dot(velocity_induced, panels[i].normal_vector)
+
+            # In _solve_vlm_system, after calculating AIC[i,j]:
+            if i == 0 and j < 4:  # First few entries
+                print(f"AIC[{i},{j}] = velocity·normal = {velocity_induced}·{panels[i].normal_vector} = {AIC[i,j]}")
     
     try:
         gamma_strengths = np.linalg.solve(AIC, RHS)
     except np.linalg.LinAlgError:
         print("Warning: Singular AIC matrix. Using least squares solution.")
         gamma_strengths = np.linalg.lstsq(AIC, RHS, rcond=None)[0]
+
+    '''# In _solve_vlm_system, after building complete AIC matrix:
+    print("\n=== AIC Matrix Analysis ===")
+    print(f"AIC shape: {AIC.shape}")
+    print(f"AIC[0,0] (first diagonal): {AIC[0, 0]}")
+    print(f"AIC[0,1] (first off-diagonal): {AIC[0, 1]}")
+    print(f"First row of AIC: {AIC[0, :]}")
+    print(f"AIC matrix stats:")
+    print(f"  Min: {np.min(AIC)}, Max: {np.max(AIC)}")
+    print(f"  # zeros: {np.sum(AIC == 0)}")
+    print(f"  # non-zeros: {np.sum(AIC != 0)}")'''
     
     return gamma_strengths
 
@@ -712,7 +744,7 @@ def _calculate_horseshoe_velocity(
     vortex_B: np.ndarray,
     V_inf_unit: np.ndarray,
     gamma: float = 1.0,
-    far_factor: float = 1000.0
+    far_factor: float = 10.0
 ) -> np.ndarray:
     segment_length = np.linalg.norm(vortex_B - vortex_A)
     far_distance = far_factor * max(segment_length, 1.0)
@@ -723,6 +755,13 @@ def _calculate_horseshoe_velocity(
     v_bound = _vortex_segment_velocity(eval_point, vortex_A, vortex_B, gamma)
     v_trail_A = _vortex_segment_velocity(eval_point, A_trail, vortex_A, gamma)
     v_trail_B = _vortex_segment_velocity(eval_point, vortex_B, B_trail, gamma)
+
+    '''# In _calculate_horseshoe_velocity:
+    print(f"\n=== Horseshoe Vortex Components ===")
+    print(f"Bound vortex velocity: {v_bound}")
+    print(f"Trail A velocity: {v_trail_A}")
+    print(f"Trail B velocity: {v_trail_B}")
+    print(f"Total velocity: {v_bound + v_trail_A + v_trail_B}")'''
     
     return v_bound + v_trail_A + v_trail_B
 
@@ -753,13 +792,16 @@ def _vortex_segment_velocity(
         np.dot(r_seg, r1) / r1_mag - np.dot(r_seg, r2) / r2_mag
     ) / cross_mag_sq
 
-    # In _vortex_segment_velocity, before returning:
-    if np.linalg.norm(factor * r1_cross_r2) < 1e-10:
-        print(f"Zero velocity detected!")
-        print(f"r1: {r1}, r1_mag: {r1_mag}")
-        print(f"r2: {r2}, r2_mag: {r2_mag}")
+    '''# In _vortex_segment_velocity, just before return:
+    if np.linalg.norm(eval_point - seg_start) < 0.1:  # Close to vortex
+        print(f"\n=== Vortex Segment Debug ===")
+        print(f"Eval point: {eval_point}")
+        print(f"Segment: {seg_start} to {seg_end}")
+        print(f"r1: {r1}, r2: {r2}")
         print(f"Cross product: {r1_cross_r2}")
-        print(f"Cross mag squared: {cross_mag_sq}")
+        print(f"Cross mag sq: {cross_mag_sq}")
+        print(f"Factor: {factor}")
+        print(f"Result velocity: {factor * r1_cross_r2}")'''
     
     return factor * r1_cross_r2
 
@@ -858,7 +900,7 @@ if __name__ == "__main__":
         aoa_min=-2, # deg
         aoa_max=12, # deg
         aoa_diff=1.0, # deg
-        airspeed=35.7632 # m/s (80 mph)
+        airspeed=25 # m/s
     )
 
     if plot_results and not parametric_study:
