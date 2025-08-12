@@ -644,6 +644,10 @@ def _generate_wing_panels(
                 
                 vortex_A = corners[0] + 0.25 * (corners[3] - corners[0])
                 vortex_B = corners[1] + 0.25 * (corners[2] - corners[1])
+
+                # Ensure all bound vortices point in positive y direction globally
+                if vortex_B[1] < vortex_A[1]:
+                    vortex_A, vortex_B = vortex_B, vortex_A
                 
                 cp_inner = corners[0] + 0.75 * (corners[3] - corners[0])
                 cp_outer = corners[1] + 0.75 * (corners[2] - corners[1])
@@ -676,6 +680,18 @@ def _generate_wing_panels(
                 )
                 
                 panels.append(panel)
+
+                if i == 0 and j < 2:  # First two chordwise panels
+                    print(f"\nPanel {j} on strip {i} on {wing_side} side")
+                    print(f"  Corners: {corners}")
+                    print(f"  Normal: {normal}")
+                    print(f"  Vortex A->B: {vortex_A} -> {vortex_B}")
+
+    # In _generate_wing_panels, verify bound vortex directions:
+    print("\n=== Bound Vortex Directions ===")
+    for i in [0, 1, 30, 31]:  # First panels of each wing
+        vortex_dir = panels[i].vortex_B - panels[i].vortex_A
+        print(f"Panel {i}: Vortex direction = {vortex_dir}")
 
     return panels
 
@@ -717,7 +733,7 @@ def _solve_vlm_system(panels: List[Panel], V_inf: float, alpha: float) -> np.nda
             # In _solve_vlm_system, after calculating AIC[i,j]:
             if i == 0 and j < 4:  # First few entries
                 print(f"AIC[{i},{j}] = velocity·normal = {velocity_induced}·{panels[i].normal_vector} = {AIC[i,j]}")
-    
+
     try:
         gamma_strengths = np.linalg.solve(AIC, RHS)
     except np.linalg.LinAlgError:
@@ -733,7 +749,16 @@ def _solve_vlm_system(panels: List[Panel], V_inf: float, alpha: float) -> np.nda
     print(f"AIC matrix stats:")
     print(f"  Min: {np.min(AIC)}, Max: {np.max(AIC)}")
     print(f"  # zeros: {np.sum(AIC == 0)}")
-    print(f"  # non-zeros: {np.sum(AIC != 0)}")'''
+    print(f"  # non-zeros: {np.sum(AIC != 0)}")
+    # After building AIC and RHS:
+    print(f"AIC matrix condition number: {np.linalg.cond(AIC)}")
+    print(f"RHS range: [{np.min(RHS)}, {np.max(RHS)}]")
+    print(f"AIC diagonal mean: {np.mean(np.diag(AIC))}")
+    print(f"AIC off-diagonal mean: {np.mean(AIC[~np.eye(n_panels, dtype=bool)])}")
+
+    # After solving:
+    print(f"Gamma range: [{np.min(gamma_strengths)}, {np.max(gamma_strengths)}]")
+    print(f"Verification - max residual: {np.max(np.abs(AIC @ gamma_strengths - RHS))}")'''
     
     return gamma_strengths
 
@@ -887,8 +912,8 @@ if __name__ == "__main__":
     parameter = "taper_ratio"
 
     # Determine meshing for VLM analysis
-    N = 8  # Number of spanwise stations
-    M = 4  # Number of chordwise panels per spanwise station
+    N = 20  # Number of spanwise stations
+    M = 8  # Number of chordwise panels per spanwise station
     cruise_alpha = 3.0 # degrees
 
     # Define a conceptual wing with realistic parameters
