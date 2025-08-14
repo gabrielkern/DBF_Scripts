@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import warnings
 from typing import List, Optional, Callable, Tuple
 from dataclasses import dataclass
-from scipy.interpolate import interp1d, UnivariateSpline
+from scipy.interpolate import interp1d
 import saved_airfoils
 
 
@@ -233,6 +233,20 @@ def analyze_wing_vlm(
     panels = _generate_wing_panels(
         camber_function, root_chord, tip_chord, semi_span, N, M
     )
+
+    '''# After generating panels:
+    panel = panels[0]
+    print(f"Panel 0 bound vortex length: {np.linalg.norm(panel.vortex_B - panel.vortex_A)}")
+    print(f"Control point to vortex distance: {np.linalg.norm(panel.control_point - panel.vortex_A)}")
+
+    # After generating all panels:
+    print(f"\n=== Panel Symmetry Check ===")
+    # Find corresponding left/right panels
+    for i in range(32):  # First half should be left wing
+        left_panel = panels[i]
+        right_panel = panels[i + 32]  # Assuming symmetric ordering
+        print(f"Panel {i} Y: {left_panel.control_point[1]:.4f}, "
+            f"Panel {i+32} Y: {right_panel.control_point[1]:.4f}")'''
     
     print(f"Generated {len(panels)} panels ({N} spanwise × {M} chordwise × 2 wings)")
     
@@ -251,6 +265,14 @@ def analyze_wing_vlm(
     for alpha_deg in alpha_degrees:
         alpha_rad = np.deg2rad(alpha_deg)
         gamma_strengths = _solve_vlm_system(panels, airspeed, alpha_rad)
+
+        '''# After solving for gamma_strengths:
+        print(f"\n=== Gamma Distribution ===")
+        print(f"Root panels gamma: {gamma_strengths[0:4]}")  # First chordwise strip
+        print(f"Tip panels gamma: {gamma_strengths[-4:]}")   # Last chordwise strip
+        print(f"Left wing avg: {np.mean(gamma_strengths[:32])}")
+        print(f"Right wing avg: {np.mean(gamma_strengths[32:])}")'''
+
         CL, CDi, CM = _calculate_coefficients(
             panels, gamma_strengths, airspeed, alpha_rad, rho, wing_area, root_chord
         )
@@ -521,94 +543,6 @@ def _calculate_surface_area(x_coords: np.ndarray, y_coords: np.ndarray) -> float
     return surface_area
 
 
-def _add_points(x_coords: np.ndarray, y_coords: np.ndarray, target_points: int = 100) -> Tuple[np.ndarray, np.ndarray]:
-    le_idx = np.argmin(x_coords)
-    
-    upper_x_orig = x_coords[:le_idx + 1]
-    upper_y_orig = y_coords[:le_idx + 1]
-    
-    lower_x_orig = x_coords[le_idx:]
-    lower_y_orig = y_coords[le_idx:]
-    
-    upper_x_orig = upper_x_orig[::-1]
-    upper_y_orig = upper_y_orig[::-1]
-    
-    if len(lower_x_orig) > 1:
-        lower_x_orig = lower_x_orig[1:]
-        lower_y_orig = lower_y_orig[1:]
-    
-    n_upper = target_points // 2
-    n_lower = target_points - n_upper
-    
-    try:
-        upper_sort_idx = np.argsort(upper_x_orig)
-        lower_sort_idx = np.argsort(lower_x_orig)
-        
-        upper_x_sorted = upper_x_orig[upper_sort_idx]
-        upper_y_sorted = upper_y_orig[upper_sort_idx]
-        lower_x_sorted = lower_x_orig[lower_sort_idx]
-        lower_y_sorted = lower_y_orig[lower_sort_idx]
-        
-        upper_spline = UnivariateSpline(upper_x_sorted, upper_y_sorted, s=0, k=3)
-        lower_spline = UnivariateSpline(lower_x_sorted, lower_y_sorted, s=0, k=3)
-        
-        beta_upper = np.linspace(0, np.pi, n_upper)
-        x_new_upper = 0.5 * (1 - np.cos(beta_upper))
-        
-        beta_lower = np.linspace(0, np.pi, n_lower)
-        x_new_lower = 0.5 * (1 - np.cos(beta_lower))
-        
-        if not np.any(np.isclose(x_new_upper, 0, atol=1e-6)):
-            x_new_upper[0] = 0.0
-        if not np.any(np.isclose(x_new_lower, 0, atol=1e-6)):
-            x_new_lower[0] = 0.0
-        
-        y_new_upper = upper_spline(x_new_upper)
-        y_new_lower = lower_spline(x_new_lower)
-        
-        le_idx_upper = np.argmin(x_new_upper)
-        le_idx_lower = np.argmin(x_new_lower)
-        y_new_upper[le_idx_upper] = 0.0
-        y_new_lower[le_idx_lower] = 0.0
-        
-        x_coords_new = []
-        y_coords_new = []
-        
-        upper_reverse_idx = np.argsort(-x_new_upper)
-        for idx in upper_reverse_idx:
-            x_coords_new.append(x_new_upper[idx])
-            y_coords_new.append(y_new_upper[idx])
-        
-        lower_forward_idx = np.argsort(x_new_lower)
-        for i, idx in enumerate(lower_forward_idx):
-            if i == 0:
-                continue
-            x_coords_new.append(x_new_lower[idx])
-            y_coords_new.append(y_new_lower[idx])
-        
-        return np.array(x_coords_new), np.array(y_coords_new)
-        
-    except Exception as e:
-        warnings.warn(f"Failed to create splines for point interpolation: {e}. Using linear interpolation instead.")
-        
-        distances = np.cumsum(np.sqrt(np.diff(x_coords)**2 + np.diff(y_coords)**2))
-        distances = np.insert(distances, 0, 0)
-        distances_norm = distances / distances[-1]
-        t_new = np.linspace(0, 1, target_points)
-        
-        x_interp = interp1d(distances_norm, x_coords, kind='linear')
-        y_interp = interp1d(distances_norm, y_coords, kind='linear')
-        
-        x_new = x_interp(t_new)
-        y_new = y_interp(t_new)
-        
-        le_idx = np.argmin(x_new)
-        x_new[le_idx] = 0.0
-        y_new[le_idx] = 0.0
-        
-        return x_new, y_new
-
-
 def _separate_surfaces(x_coords: np.ndarray, y_coords: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     le_idx = np.argmin(x_coords)
     
@@ -710,6 +644,10 @@ def _generate_wing_panels(
                 
                 vortex_A = corners[0] + 0.25 * (corners[3] - corners[0])
                 vortex_B = corners[1] + 0.25 * (corners[2] - corners[1])
+
+                # Ensure all bound vortices point in positive y direction globally
+                if vortex_B[1] < vortex_A[1]:
+                    vortex_A, vortex_B = vortex_B, vortex_A
                 
                 cp_inner = corners[0] + 0.75 * (corners[3] - corners[0])
                 cp_outer = corners[1] + 0.75 * (corners[2] - corners[1])
@@ -742,20 +680,35 @@ def _generate_wing_panels(
                 )
                 
                 panels.append(panel)
-    
+
+                if i == 0 and j < 2:  # First two chordwise panels
+                    print(f"\nPanel {j} on strip {i} on {wing_side} side")
+                    print(f"  Corners: {corners}")
+                    print(f"  Normal: {normal}")
+                    print(f"  Vortex A->B: {vortex_A} -> {vortex_B}")
+
+    # In _generate_wing_panels, verify bound vortex directions:
+    print("\n=== Bound Vortex Directions ===")
+    for i in [0, 1, 30, 31]:  # First panels of each wing
+        vortex_dir = panels[i].vortex_B - panels[i].vortex_A
+        print(f"Panel {i}: Vortex direction = {vortex_dir}")
+
     return panels
 
 
 def _solve_vlm_system(panels: List[Panel], V_inf: float, alpha: float) -> np.ndarray:
     n_panels = len(panels)
     
+    # Create a directional vector for the oncoming flow (plus unit version of it)
     V_inf_vec = V_inf * np.array([np.cos(alpha), 0, np.sin(alpha)])
     V_inf_unit = V_inf_vec / np.linalg.norm(V_inf_vec)
     
+    # Initialize the AIC and RHS matrices
     AIC = np.zeros((n_panels, n_panels))
     RHS = np.zeros(n_panels)
     
     for i in range(n_panels):
+        # Dot product between the oncoming velocity vector and the normal vector of the panel
         RHS[i] = -np.dot(V_inf_vec, panels[i].normal_vector)
         
         for j in range(n_panels):
@@ -766,14 +719,46 @@ def _solve_vlm_system(panels: List[Panel], V_inf: float, alpha: float) -> np.nda
                 V_inf_unit,
                 gamma=1.0
             )
+
+            '''# In _solve_vlm_system, after calculating velocity_induced:
+            if i == 0 and j == 0:  # First panel self-influence
+                print(f"Panel 0 control point: {panels[0].control_point}")
+                print(f"Panel 0 vortex A: {panels[0].vortex_A}")
+                print(f"Panel 0 vortex B: {panels[0].vortex_B}")
+                print(f"Induced velocity: {velocity_induced}")
+                print(f"Normal vector: {panels[0].normal_vector}")'''
             
             AIC[i, j] = np.dot(velocity_induced, panels[i].normal_vector)
-    
+
+            # In _solve_vlm_system, after calculating AIC[i,j]:
+            if i == 0 and j < 4:  # First few entries
+                print(f"AIC[{i},{j}] = velocity·normal = {velocity_induced}·{panels[i].normal_vector} = {AIC[i,j]}")
+
     try:
         gamma_strengths = np.linalg.solve(AIC, RHS)
     except np.linalg.LinAlgError:
         print("Warning: Singular AIC matrix. Using least squares solution.")
         gamma_strengths = np.linalg.lstsq(AIC, RHS, rcond=None)[0]
+
+    '''# In _solve_vlm_system, after building complete AIC matrix:
+    print("\n=== AIC Matrix Analysis ===")
+    print(f"AIC shape: {AIC.shape}")
+    print(f"AIC[0,0] (first diagonal): {AIC[0, 0]}")
+    print(f"AIC[0,1] (first off-diagonal): {AIC[0, 1]}")
+    print(f"First row of AIC: {AIC[0, :]}")
+    print(f"AIC matrix stats:")
+    print(f"  Min: {np.min(AIC)}, Max: {np.max(AIC)}")
+    print(f"  # zeros: {np.sum(AIC == 0)}")
+    print(f"  # non-zeros: {np.sum(AIC != 0)}")
+    # After building AIC and RHS:
+    print(f"AIC matrix condition number: {np.linalg.cond(AIC)}")
+    print(f"RHS range: [{np.min(RHS)}, {np.max(RHS)}]")
+    print(f"AIC diagonal mean: {np.mean(np.diag(AIC))}")
+    print(f"AIC off-diagonal mean: {np.mean(AIC[~np.eye(n_panels, dtype=bool)])}")
+
+    # After solving:
+    print(f"Gamma range: [{np.min(gamma_strengths)}, {np.max(gamma_strengths)}]")
+    print(f"Verification - max residual: {np.max(np.abs(AIC @ gamma_strengths - RHS))}")'''
     
     return gamma_strengths
 
@@ -784,7 +769,7 @@ def _calculate_horseshoe_velocity(
     vortex_B: np.ndarray,
     V_inf_unit: np.ndarray,
     gamma: float = 1.0,
-    far_factor: float = 1000.0
+    far_factor: float = 10.0
 ) -> np.ndarray:
     segment_length = np.linalg.norm(vortex_B - vortex_A)
     far_distance = far_factor * max(segment_length, 1.0)
@@ -795,6 +780,13 @@ def _calculate_horseshoe_velocity(
     v_bound = _vortex_segment_velocity(eval_point, vortex_A, vortex_B, gamma)
     v_trail_A = _vortex_segment_velocity(eval_point, A_trail, vortex_A, gamma)
     v_trail_B = _vortex_segment_velocity(eval_point, vortex_B, B_trail, gamma)
+
+    '''# In _calculate_horseshoe_velocity:
+    print(f"\n=== Horseshoe Vortex Components ===")
+    print(f"Bound vortex velocity: {v_bound}")
+    print(f"Trail A velocity: {v_trail_A}")
+    print(f"Trail B velocity: {v_trail_B}")
+    print(f"Total velocity: {v_bound + v_trail_A + v_trail_B}")'''
     
     return v_bound + v_trail_A + v_trail_B
 
@@ -824,6 +816,17 @@ def _vortex_segment_velocity(
     factor = (gamma / (4 * np.pi)) * (
         np.dot(r_seg, r1) / r1_mag - np.dot(r_seg, r2) / r2_mag
     ) / cross_mag_sq
+
+    '''# In _vortex_segment_velocity, just before return:
+    if np.linalg.norm(eval_point - seg_start) < 0.1:  # Close to vortex
+        print(f"\n=== Vortex Segment Debug ===")
+        print(f"Eval point: {eval_point}")
+        print(f"Segment: {seg_start} to {seg_end}")
+        print(f"r1: {r1}, r2: {r2}")
+        print(f"Cross product: {r1_cross_r2}")
+        print(f"Cross mag sq: {cross_mag_sq}")
+        print(f"Factor: {factor}")
+        print(f"Result velocity: {factor * r1_cross_r2}")'''
     
     return factor * r1_cross_r2
 
@@ -905,12 +908,12 @@ if __name__ == "__main__":
 
     # Set to true to get graphs
     plot_results = True
-    parametric_study = True
+    parametric_study = False
     parameter = "taper_ratio"
 
     # Determine meshing for VLM analysis
-    N = 8  # Number of spanwise stations
-    M = 4  # Number of chordwise panels per spanwise station
+    N = 20  # Number of spanwise stations
+    M = 8  # Number of chordwise panels per spanwise station
     cruise_alpha = 3.0 # degrees
 
     # Define a conceptual wing with realistic parameters
@@ -922,7 +925,7 @@ if __name__ == "__main__":
         aoa_min=-2, # deg
         aoa_max=12, # deg
         aoa_diff=1.0, # deg
-        airspeed=35.7632 # m/s (80 mph)
+        airspeed=25 # m/s
     )
 
     if plot_results and not parametric_study:
