@@ -1,8 +1,8 @@
-#xflr5 v6.61
+xflr5 v6.61
 
-#Plane name :, Lark 4.5lb cg 0.04m behind c/4
-#Polar name :, T1-24.59 m/s-VLM1
-#Freestream speed :, 24.6 m/s
+Plane name :, Lark 4.5lb cg 0.04m behind c/4
+Polar name :, T1-24.59 m/s-VLM1
+Freestream speed :, 24.6 m/s
 
 alpha, Beta, CL, CDi, CDv, CD, CY, Cl, Cm, Cn, Cni, QInf, XCP
    -2.000,     0.000,  -0.031549,   0.000368,   0.014937,   0.015304,  -0.000000,   0.000000,   0.036357,   0.000000,   0.000000,   24.5900,    0.3350

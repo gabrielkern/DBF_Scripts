@@ -127,14 +127,8 @@ def calculate_thrust(vel_fps:float, thrust_interp) -> float:
 
 def xflr_interp(filename):
     # --- read the polar -------------------------------------------------
-    df = pd.read_csv(
-    filename,
-    comment="#",          # skip every line that starts with ‘#’
-    skipinitialspace=True # drop spaces that follow each comma
-    )
-    # clean the headers
-    df.columns = df.columns.str.strip()   # remove stray spaces
-    # --- convert strings to numbers (just in case) ----------------------
+    df = pd.read_csv(filename, skiprows=6, skipinitialspace=True)
+    df.columns = df.columns.str.strip()
     df = df.apply(pd.to_numeric, errors="coerce")
 
     coeff_interp = {
