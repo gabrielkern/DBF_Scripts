@@ -18,7 +18,7 @@ L = 2 # total length
 
 #Wing
 Ww = 2 # wing weight in pounds
-taper = np.array([1]) # taper ratio
+taper = np.array([0.6]) # taper ratio
 Cr = 10.66 /12 # root chord inches #############
 a0 = 2*np.pi #section lift coefficient
 b_input= 60  /12 # span inches
