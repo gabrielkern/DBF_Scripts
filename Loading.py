@@ -226,7 +226,7 @@ for current_taper_ratio in taper:
         #print(Intboy)
 
         S = ((Cr + Cr*current_taper_ratio)*b/2)
-        U_needed = ((WT+Ww)*n*2 / rho / np.trapz(Intboy,x=full_y) )**0.5  # finds U_inf in ft/s  np.trapz(Intboy,x=full_y)
+        U_needed = ((WT+Ww)*n*2 / rho / np.trapezoid(Intboy,x=full_y) )**0.5  # finds U_inf in ft/s  np.trapz(Intboy,x=full_y)
         #U_neccesary.append(Uneeded)
         #print(U_needed/1.467) #prints in mph
 
