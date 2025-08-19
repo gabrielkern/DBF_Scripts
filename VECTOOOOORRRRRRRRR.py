@@ -358,7 +358,7 @@ def turn(state:dict, constants:dict, turn_needed, batt_interp, thrust_interp, co
             F_lat = 0
             omega = 0
         else:
-            beta = np.acos(W/lift)
+            beta = np.arccos(W/lift)
             F_lat = lift * np.sin(beta)
             omega = F_lat / (m * v)
 
