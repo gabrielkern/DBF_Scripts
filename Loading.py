@@ -31,15 +31,18 @@ rho = 0.0023769  # slugs/ft³
 #Spar
 max_height = 1.08
 min_height = 0.648
-height = np.linspace(max_height,min_height,1313) # inches
-thickness_guess = np.linspace(0.0625,2,10000)
+thickness_guess = np.linspace(0.0625,5,50000)
 Ebass = 1.3*10**6 #psi
 Ebalsa = 4.4*10**5 #psi
 basst = 0.125 #inches
 sigma_bass = 2000 #psi
-sigma_balsa = 2000 #psi
-FOS = 3 # factor of safety
+sigma_balsa = 120 #psi per
+shear_balsa = 290 #psi
+FOS = 1 # factor of safety 
 n = Ebass/Ebalsa
+height_left= np.linspace(min_height,max_height,int((1313-1)/2)) # inches
+height_left_right = np.flipud(height_left)
+height = np.concatenate((height_left, [max_height], height_left_right))
 
 ########################################################################
 
@@ -280,16 +283,6 @@ for current_taper_ratio in taper:
         
 
 
-
-
-
-
-        #########################################################################################################################################
-        #########################################################################################################################################
-        #########################################################################################################################################
-        #########################################################################################################################################
-        #########################################################################################################################################
-
         # finding max bending and shear and finding cross sections of wood to use
 
         spar_thickness = []
@@ -302,24 +295,17 @@ for current_taper_ratio in taper:
                 innerthick = thick/n
                 subtract = thick-innerthick
                 I = thick * h**3 / 12  - subtract*hw**3 / 12
-                sigma_max_bass = wingmoment[i] * h / I
-                sigma_max_balsa = wingmoment[i] * hw / (I*n) 
-                if  sigma_max_bass <= sigma_bass/FOS and sigma_max_balsa <= sigma_balsa/FOS:
+                Q = h/2*thick * h/4
+                shear_max_balsa = wingshear[i]*Q / (I*thick)
+                sigma_max_bass = wingmoment[i] * h/2 / I
+                sigma_max_balsa = wingmoment[i] * hw/2 / (I*n) 
+                principal1_balsa = sigma_max_balsa/2 + ((sigma_max_balsa/2)**2 +shear_max_balsa**2)**(1/2)
+                principal2_balsa = sigma_max_balsa/2 - ((sigma_max_balsa/2)**2 +shear_max_balsa**2)**(1/2)
+                if  sigma_max_bass <= sigma_bass/FOS and abs(principal1_balsa) <= sigma_balsa/FOS and abs(principal2_balsa) <= sigma_balsa/FOS:
                         break
             spar_thickness.append(thick)
 
         
-
-
-        #########################################################################################################################################
-        #########################################################################################################################################
-        #########################################################################################################################################
-        #########################################################################################################################################
-        #########################################################################################################################################    
-
-
-
-
 
 
         axs[1].plot(full_y, wingshear, label=f"$\\ Shear \\ lambda = {current_taper_ratio:.1f}$")
@@ -328,12 +314,18 @@ for current_taper_ratio in taper:
         axs[1].grid(True)
         axs[1].set_xlabel("Distance from the Center (ft)")
         axs[1].set_ylabel("Shear (lb) and Moment (lbft)")
-        axs[2].plot(full_y, spar_thickness, label=f"$\\ Moment \\ lambda = {current_taper_ratio:.1f}$")
+        #axs[1].set_ylim(bottom=0)
+        axs[1].set_xlim(right=2.5)
+        axs[1].set_xlim(left=-2.5)
+        axs[2].plot(full_y, spar_thickness, label=f"$\\ Width \\ lambda = {current_taper_ratio:.1f}$")
+        #axs[2].plot(full_y, height, label=f"$\\ Thickness \\ lambda = {current_taper_ratio:.1f}$")
         axs[2].legend(loc='best')
         axs[2].grid(True)
         axs[2].set_xlabel("Distance from the Center (ft)")
         axs[2].set_ylabel("Spar Thickness (in)")
         axs[2].set_ylim(bottom=0)
+        axs[2].set_xlim(right=2.5)
+        axs[2].set_xlim(left=-2.5)
 
 plt.tight_layout()
 plt.show()
