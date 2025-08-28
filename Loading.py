@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 Acc = 606 # number of points do not touch causes problems with moment
 
 #Fuelselage
-Wb = 6 # body weight lbs
+Wb = 20 # body weight lbs
 n = 10  # g load
 placedlocations = [0.1,0.3] # location of motor,esc,battery
 placedweights = [1,1] # weights corresponding to above
@@ -17,24 +17,28 @@ w = 0.5 # quarter chord positions
 L = 2 # total length
 
 #Wing
-Ww = 2 # wing weight in pounds
+Ww = 0 # wing weight in pounds
 taper = np.array([0.6]) # taper ratio
-Cr = 10.66 /12 # root chord inches #############
+Cr = 16.56 /12 # root chord inches #############
 a0 = 2*np.pi #section lift coefficient
 b_input= 60  /12 # span inches
 B_width = 5  /12# body width in inches
-term = 50 # number of terms
+term = 100 # number of terms
 alphain = 3 # angle of attack
-alphanolift = -1.6
+alphanolift = -2.1
 rho = 0.0023769  # slugs/ft³
 
 #Spar
-h = 0.70 # height of the box beam in inches
-b = 0.70 # wisth of the box beam
-capt = 1/8 #thickness of wood used for bending cap
-Es = 63.81  # elastic modulus of wood selected: balsa shear web
-Eb = 1044.271 # basswood elastic modulus bending caps
-FS = 2 # factor of safety
+max_height = 1.08
+min_height = 0.648
+height = np.linspace(max_height,min_height,1313) # inches
+thickness_guess = np.linspace(0.125,2,10000)
+Ebass = 1.3*10**6 #psi
+Ebalsa = 4.5*10**5 #psi
+basst = 0.125 #inches
+sigma_bass = 2000 #psi
+sigma_balsa = 1500 #psi
+n = Ebass/Ebalsa
 
 ########################################################################
 
@@ -82,7 +86,7 @@ for j in range(len(moment)-1):
 
 
 # Plot shear and moment diagrams
-fig, axs = plt.subplots(2, 1, figsize=(10, 8))  # 2 rows, 1 column of subplots
+fig, axs = plt.subplots(3,1, figsize=(15, 8.8))  # 2 rows, 1 column of subplots
 axs[0].plot(x_vals, -shear, label='Shear Force', color='royalblue')
 axs[0].plot(x_vals, moment, label='Moment', color='hotpink')
 axs[0].axhline(0, color='k', linestyle='--', linewidth=1)
@@ -287,11 +291,21 @@ for current_taper_ratio in taper:
 
         # finding max bending and shear and finding cross sections of wood to use
 
-        wing_max_shear = np.array([np.max(np.abs(wingshear)), wingmoment[np.argmax(np.abs(wingshear))], full_y[np.argmax(np.abs(wingshear))]])
-        wing_max_moment = np.array([np.max(np.abs(wingmoment)), wingshear[np.argmax(np.abs(wingmoment))], full_y[np.argmax(np.abs(wingmoment))]])
-        print(wing_max_shear)
-        print(wing_max_moment)
+        spar_thickness = []
 
+        for i in range(len(full_y)):
+            h = height[i]
+            hw = h-basst
+            for j in range(len(thickness_guess)):
+                thick = thickness_guess[j]
+                innerthick = thick/n
+                subtract = thick-innerthick
+                I = thick * h**3 / 12  - subtract*hw**3 / 12
+                sigma_max_bass = wingmoment[i] * h / I
+                sigma_max_balsa = wingmoment[i] * hw / (I*n) 
+                if  sigma_max_bass <= sigma_bass and sigma_max_balsa <= sigma_balsa:
+                        break
+            spar_thickness.append(thick)
 
         
 
@@ -313,10 +327,12 @@ for current_taper_ratio in taper:
         axs[1].grid(True)
         axs[1].set_xlabel("Distance from the Center (ft)")
         axs[1].set_ylabel("Shear (lb) and Moment (lbft)")
+        axs[2].plot(full_y, spar_thickness, label=f"$\\ Moment \\ lambda = {current_taper_ratio:.1f}$")
+        axs[2].legend(loc='best')
+        axs[2].grid(True)
+        axs[2].set_xlabel("Distance from the Center (ft)")
+        axs[2].set_ylabel("Spar Thickness (in)")
+        axs[2].set_ylim(bottom=0)
 
 plt.tight_layout()
 plt.show()
-
-
-
-
