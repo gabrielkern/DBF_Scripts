@@ -32,12 +32,13 @@ rho = 0.0023769  # slugs/ft³
 max_height = 1.08
 min_height = 0.648
 height = np.linspace(max_height,min_height,1313) # inches
-thickness_guess = np.linspace(0.125,2,10000)
+thickness_guess = np.linspace(0.0625,2,10000)
 Ebass = 1.3*10**6 #psi
-Ebalsa = 4.5*10**5 #psi
+Ebalsa = 4.4*10**5 #psi
 basst = 0.125 #inches
 sigma_bass = 2000 #psi
-sigma_balsa = 1500 #psi
+sigma_balsa = 2000 #psi
+FOS = 3 # factor of safety
 n = Ebass/Ebalsa
 
 ########################################################################
@@ -303,7 +304,7 @@ for current_taper_ratio in taper:
                 I = thick * h**3 / 12  - subtract*hw**3 / 12
                 sigma_max_bass = wingmoment[i] * h / I
                 sigma_max_balsa = wingmoment[i] * hw / (I*n) 
-                if  sigma_max_bass <= sigma_bass and sigma_max_balsa <= sigma_balsa:
+                if  sigma_max_bass <= sigma_bass/FOS and sigma_max_balsa <= sigma_balsa/FOS:
                         break
             spar_thickness.append(thick)
 
