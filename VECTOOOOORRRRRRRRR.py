@@ -249,7 +249,7 @@ def climb(state:dict, constants:dict, batt_interp, thrust_interp, coeff_interp):
 
         # Calculate the accelerations acting in each direction
         ax = ( (thrust) - (drag) - (W*np.sin(theta)) ) / m
-        ay = ( (lift) - (W*np.cos(theta)) ) / m
+        ay = ( (lift * np.cos(theta)) + ( thrust * np.sin(theta) ) - (W) ) / m
 
         new_acceleration = np.array([ax,ay]) # Acceleration in ft/s^2
         new_velocity = np.add(state['velocity'][i], new_acceleration*dt)
