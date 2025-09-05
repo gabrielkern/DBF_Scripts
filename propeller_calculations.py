@@ -1,18 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Set values
 PANEL_COUNT = 10
 A_GUESS = 0.5
 B_GUESS = 0.125
 PITCH = 6.0 # in inches
-DIAMETER = 10.0 # in inches
-RPM_RANGE = (1,11) # in 1000 rpms
-V_INF = 50 # m/s
+DIAMETER = 14.0 # in inches
+RPM_RANGE = (7,12) # in 1000 rpms
+V_INF = 30 # m/s
 RHO = 1.225 # kg/m^3
 PROP_COUNT = 2
 TOL = 1e-4
-PLOT_FUNCTION = True
+PLOT_FUNCTION = False
 
 def find_coefficients(alpha):
     """Flat-plate airfoil coefficients. Can be modified in future to use/match real data."""
@@ -205,16 +206,76 @@ def plot_prop_data(results_data):
     plt.tight_layout()
     plt.show()
 
-if __name__ == "__main__":
-    results = apply_bemt()
-    for rpm, data in results.items():
-        print(f"RPM: {rpm}")
-        print(f"  Thrust (N): {data['Thrust']:.2f}")
-        print(f"  Torque (Nm): {data['Torque']:.2f}")
-        print(f"  CT: {data['CT']:.4f}")
-        print(f"  CQ: {data['CQ']:.4f}")
-        print(f"  Efficiency: {data['Efficiency']:.4f}")
-        print()
+def calculate_efficiency_heatmap(pitch_range, diameter_range, rpm_range=RPM_RANGE, v_inf=V_INF, prop_count=PROP_COUNT):
+    """Calculate efficiency for all pitch/diameter combinations and return as arrays for heatmap."""
     
+    efficiency_matrix = np.zeros((len(pitch_range), len(diameter_range)))
+    
+    for i, pitch in enumerate(pitch_range):
+        for j, diameter in enumerate(diameter_range):
+            print(f"Calculating for pitch={pitch:.1f}, diameter={diameter:.1f}")
+            
+            # Run BEMT analysis for this pitch/diameter combination
+            results = apply_bemt(
+                panel_count=PANEL_COUNT, 
+                a_guess=A_GUESS, 
+                b_guess=B_GUESS, 
+                pitch=pitch, 
+                diameter=diameter, 
+                rpm_range=rpm_range, 
+                v_inf=v_inf, 
+                rho=RHO, 
+                B=prop_count, 
+                tol=TOL
+            )
+            
+            # Calculate average efficiency across RPM range
+            efficiencies = [data['Efficiency'] for data in results.values()]
+            avg_efficiency = np.mean(efficiencies)
+            efficiency_matrix[i, j] = max(avg_efficiency,0)
+    
+    return efficiency_matrix
+
+def plot_efficiency_heatmap(pitch_range, diameter_range, efficiency_matrix):
+    """Plot efficiency heatmap for pitch vs diameter combinations."""
+    
+    plt.figure(figsize=(12, 8))
+    
+    # Create heatmap
+    sns.heatmap(
+        efficiency_matrix,
+        xticklabels=[f'{d:.1f}' for d in diameter_range],
+        yticklabels=[f'{p:.1f}' for p in pitch_range],
+        annot=True,
+        fmt='.3f',
+        cmap='viridis',
+        cbar_kws={'label': 'Efficiency'}
+    )
+    
+    plt.title(f'Propeller Efficiency Heatmap\n(Average across RPM {RPM_RANGE[0]*1000}-{RPM_RANGE[1]*1000}, V∞={V_INF} m/s, {PROP_COUNT} Props)', fontsize=14, fontweight='bold')
+    plt.xlabel('Diameter (inches)', fontsize=12)
+    plt.ylabel('Pitch (inches)', fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+    # Original analysis (hidden when PLOT_FUNCTION = False)
     if PLOT_FUNCTION:
+        results = apply_bemt()
+        for rpm, data in results.items():
+            print(f"RPM: {rpm}")
+            print(f"  Thrust (N): {data['Thrust']:.2f}")
+            print(f"  Torque (Nm): {data['Torque']:.2f}")
+            print(f"  CT: {data['CT']:.4f}")
+            print(f"  CQ: {data['CQ']:.4f}")
+            print(f"  Efficiency: {data['Efficiency']:.4f}")
+            print()
         plot_prop_data(results)
+    
+    # New heatmap analysis
+    pitch_range = np.linspace(6, 14, 9)  # 4 to 10 inches
+    diameter_range = np.linspace(10, 18, 9)  # 10 to 18 inches
+    
+    print("Generating efficiency heatmap...")
+    efficiency_matrix = calculate_efficiency_heatmap(pitch_range, diameter_range)
+    plot_efficiency_heatmap(pitch_range, diameter_range, efficiency_matrix)
