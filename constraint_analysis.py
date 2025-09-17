@@ -5,13 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #######################################
-MTOF = 20  # lbs
+MTOF = 18 # lbs
 CD_takeoff = 0.15
 CL_takeoff = 1.0
 CL_approach = 1.0
 CL_max = 1.25
 Ground_Friction = 0.04
-Ground_Run = 30  # ft
+Ground_Run = 50  # ft
 Lift_Off_Speed = 40  # intakes mph turns it to ft/s
 g = 32.174  # ft/s^2
 rho = 0.0022  # slugs/ft^3
