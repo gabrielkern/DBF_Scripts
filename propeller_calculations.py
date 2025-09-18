@@ -6,14 +6,15 @@ import seaborn as sns
 PANEL_COUNT = 10
 A_GUESS = 0.5
 B_GUESS = 0.125
-PITCH = 6.0 # in inches
-DIAMETER = 14.0 # in inches
-RPM_RANGE = (7,12) # in 1000 rpms
-V_INF = 30 # m/s
+PITCH = 12.0 # in inches
+DIAMETER = 15.0 # in inches
+RPM_RANGE = (4,20) # in 1000 rpms
+V_INF = 25 # m/s
 RHO = 1.225 # kg/m^3
 PROP_COUNT = 2
 TOL = 1e-4
-PLOT_FUNCTION = False
+PLOT_FUNCTION = True
+HEATMAP = False
 
 def find_coefficients(alpha):
     """Flat-plate airfoil coefficients. Can be modified in future to use/match real data."""
@@ -272,10 +273,13 @@ if __name__ == "__main__":
             print()
         plot_prop_data(results)
     
-    # New heatmap analysis
-    pitch_range = np.linspace(6, 14, 9)  # 4 to 10 inches
-    diameter_range = np.linspace(10, 18, 9)  # 10 to 18 inches
+    if HEATMAP:
+        # New heatmap analysis
+        pitch_range = np.linspace(6, 14, 9)  # 4 to 10 inches
+        diameter_range = np.linspace(10, 18, 9)  # 10 to 18 inches
+        
+        print("Generating efficiency heatmap...")
+        efficiency_matrix = calculate_efficiency_heatmap(pitch_range, diameter_range)
+        plot_efficiency_heatmap(pitch_range, diameter_range, efficiency_matrix)
     
-    print("Generating efficiency heatmap...")
-    efficiency_matrix = calculate_efficiency_heatmap(pitch_range, diameter_range)
-    plot_efficiency_heatmap(pitch_range, diameter_range, efficiency_matrix)
+    results = apply_bemt()

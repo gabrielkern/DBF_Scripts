@@ -7,23 +7,23 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from scipy.interpolate import make_interp_spline,interp1d
 
-# SET STATIC PARAMETERS
-LAP_ALTITUDE = 200 #ft
-CLIMB_ANGLE = 30 #deg
-WING_AREA = 4.44 #ft^2
-WEIGHT = 4.5 #lbs
-COEFF_FRICTION = 0.04 #unitless
-GRAVITY = 32.174 #ft/s^2
-RHO = 0.0023769 #slugs/ft^3 at sea level
-DT = 0.05 #seconds
-BATTERY_CAPACITY = 3300 #mAh
-BATTERY_CELLS = 4 #number of cells in series
-LAP_COUNT = 3 # Number of laps that the program should run
-ANGLE_OF_ATTACK = 3 #deg
-AOA_AT_MAX_LIFT = 10 #deg
+# # SET STATIC PARAMETERS
+# LAP_ALTITUDE = 200 #ft
+# CLIMB_ANGLE = 30 #deg
+# WING_AREA = 4.44 #ft^2
+# WEIGHT = 4.5 #lbs
+# COEFF_FRICTION = 0.04 #unitless
+# GRAVITY = 32.174 #ft/s^2
+# RHO = 0.0023769 #slugs/ft^3 at sea level
+# DT = 0.05 #seconds
+# BATTERY_CAPACITY = 3300 #mAh
+# BATTERY_CELLS = 4 #number of cells in series
+# LAP_COUNT = 3 # Number of laps that the program should run
+# ANGLE_OF_ATTACK = 3 #deg
+# AOA_AT_MAX_LIFT = 10 #deg
 
-MOTOCALC_FILEPATH = 'Lark8lb10x6.csv'
-XFLR5_FILEPATH = 'Lark45lbfull04m.csv'
+# MOTOCALC_FILEPATH = 'Lark8lb10x6.csv'
+# XFLR5_FILEPATH = 'Lark45lbfull04m.csv'
 
 
 """
@@ -179,14 +179,14 @@ def takeoff(state:dict, constants:dict, batt_interp, thrust_interp, coeff_interp
     dt = constants['dt']
     i = state['i']
 
-    CL_Takeoff,CD_Takeoff = xflr_results(coeff_interp, "alpha", 0) # Get CL and CD at 0 deg alpha
+    aoa_Takeoff, CL_Takeoff,CD_Takeoff = constants['max_lift_coeffs']
 
     # Calculate the takeoff sequence until the lift is greater than weight
     while state['lift'][i] <= W:
 
         v = np.linalg.norm(state['velocity'][i]) # Current speed in ft/s
 
-        q = 0.5 * rho * state['velocity'][i,0]**2 # Dynamic pressure in slugs/ft/s^2
+        q = 0.5 * rho * state['velocity'][i,0]**2 # Dynamic pressure in lbs/ft/s^2
         drag = CD_Takeoff * q * S # Drag in lbs
         lift = CL_Takeoff * q * S # Lift in lbs
 
@@ -198,6 +198,8 @@ def takeoff(state:dict, constants:dict, batt_interp, thrust_interp, coeff_interp
         new_velocity = np.add(state['velocity'][i], new_acceleration*dt)
         new_position = np.add(state['position'][i], state['velocity'][i]*dt)
 
+        #print(f"Lift: {lift}, Weight: {W}")
+
         # Append to all fields in the state dict:
         state['velocity'] = np.vstack((state['velocity'], new_velocity))
         state['position'] = np.vstack((state['position'], new_position))
@@ -208,7 +210,7 @@ def takeoff(state:dict, constants:dict, batt_interp, thrust_interp, coeff_interp
         state['thrust'] = np.append(state['thrust'],thrust)
         state['Cl'] = np.append(state['Cl'],CL_Takeoff)
         state['Cd'] = np.append(state['Cd'],CD_Takeoff)
-        state['alpha'] = np.append(state['alpha'],0) # Hold at 0 aoa
+        state['alpha'] = np.append(state['alpha'],aoa_Takeoff) # Hold at 0 aoa
         state['lift'] = np.append(state['lift'], lift)
         state['drag'] = np.append(state['drag'], drag)
         state['F_long'] = np.append(state['F_long'],thrust-drag-f_ground)
@@ -230,26 +232,27 @@ def climb(state:dict, constants:dict, batt_interp, thrust_interp, coeff_interp):
     dt = constants['dt']
     alt = constants['altitude']
     theta = np.radians(constants['theta'])  # Convert to radians
-    aoa = constants['cruise_aoa']
 
     i = state['i']
 
     # Calculate the lift and drag coefficients at the cruise aoa
-    CL_Cruise, CD_Cruise = xflr_results(coeff_interp, "alpha", aoa)
+    aoa_Cruise, CL_Cruise, CD_Cruise = constants['max_lift_coeffs']
 
     while state['position'][i,1] <= alt:
 
-        v = np.linalg.norm(state['velocity'][i]) # Current speed in ft/s
+        vx = state['velocity'][i,0]
+        vy = state['velocity'][i,1]
+        v = (vx * np.cos(theta)) + (vy * np.sin(theta)) # Current speed in ft/s
 
-        q = 0.5 * rho * state['velocity'][i,0]**2 # Dynamic pressure in slugs/ft/s^2
-        drag = CD_Cruise * q * S # Drag in lbs
+        q = 0.5 * rho * v**2 # Dynamic pressure in lbs/ft/s^2
+        drag = CD_Cruise * q * S # Drag in llbs
         lift = CL_Cruise * q * S # Lift in lbs
 
-        thrust = calculate_thrust(state['velocity'][i,0], thrust_interp) # Thrust in lbs
+        thrust = calculate_thrust(v, thrust_interp) # Thrust in lbs
 
-        # Calculate the accelerations acting in each direction
-        ax = ( (thrust) - (drag) - (W*np.sin(theta)) ) / m
-        ay = ( (lift * np.cos(theta)) + ( thrust * np.sin(theta) ) - (W) ) / m
+        # Calculate the accelerations acting in each direction (plane-forward and universal up)
+        ax = ( (thrust * np.cos(theta)) - (drag * np.cos(theta)) + (lift * np.sin(theta)) ) / m
+        ay = ( (lift * np.cos(theta)) + ( thrust * np.sin(theta) ) - (drag * np.sin(theta)) - (W) ) / m
 
         new_acceleration = np.array([ax,ay]) # Acceleration in ft/s^2
         new_velocity = np.add(state['velocity'][i], new_acceleration*dt)
@@ -265,7 +268,7 @@ def climb(state:dict, constants:dict, batt_interp, thrust_interp, coeff_interp):
         state['thrust'] = np.append(state['thrust'],thrust)
         state['Cl'] = np.append(state['Cl'],CL_Cruise)
         state['Cd'] = np.append(state['Cd'],CD_Cruise)
-        state['alpha'] = np.append(state['alpha'],aoa) # Hold at cruise aoa
+        state['alpha'] = np.append(state['alpha'],aoa_Cruise) # Hold at cruise aoa
         state['lift'] = np.append(state['lift'], lift)
         state['drag'] = np.append(state['drag'], drag)
         state['F_long'] = np.append(state['F_long'], ax * m)
@@ -293,16 +296,16 @@ def straight(state:dict, constants:dict, distance_needed, batt_interp, thrust_in
 
         v = np.linalg.norm(state['velocity'][i]) # Current speed in ft/s
 
-        q = 0.5 * rho * state['velocity'][i,0]**2 # Dynamic pressure in slugs/ft/s^2
+        q = 0.5 * rho * state['velocity'][i,0]**2 # Dynamic pressure in lbs/ft/s^2
 
         CL_Needed = W / q / S # CL needed to stay level altitude
 
-        CD_Needed,alpha = xflr_results(coeff_interp, "cl", CL_Needed) # Get CL and CD at 0 deg alpha
+        CD_Needed,alpha = xflr_results(coeff_interp, "Cl", CL_Needed) # Get CL and CD at 0 deg alpha
 
         drag = CD_Needed * q * S # Calculate drag on the plane
-        thrust = calculate_thrust(state['velocity'][i,0], thrust_interp) # Thrust in lbs
+        thrust = calculate_thrust(state['velocity'][i,0], thrust_interp) # Thrust in n
 
-        new_acceleration = np.array([(thrust - drag) / m,0.0]) # Acceleration in ft/s^2
+        new_acceleration = np.array([(thrust - drag) / m,0.0]) # Acceleration in m/s^2
         old_velocity = np.array([state['velocity'][i,0],0.0])
         new_velocity = np.add(old_velocity, new_acceleration*dt)
         new_position = np.add(state['position'][i], old_velocity*dt)
@@ -337,19 +340,18 @@ def turn(state:dict, constants:dict, turn_needed, batt_interp, thrust_interp, co
     S = constants['S']
     rho = constants['rho']
     dt = constants['dt']
-    aoa_max_lift = constants['aoa_max_lift']
     
     i = state['i']
 
-    CL_Turn, CD_Turn = xflr_results(coeff_interp, "alpha", aoa_max_lift) # Get lift/drag coeffs at point of max lift
+    aoa_Turn, CL_Turn, CD_Turn = constants['max_lift_coeffs'] # Get lift/drag coeffs at point of max lift
 
     turn_traveled = 0
 
     while turn_needed >= turn_traveled:
 
-        v = np.linalg.norm(state['velocity'][i]) # Current speed in ft/s
+        v = np.linalg.norm(state['velocity'][i]) # Current speed in m/s
 
-        q = 0.5 * rho * state['velocity'][i,0]**2 # Dynamic pressure in slugs/ft/s^2
+        q = 0.5 * rho * state['velocity'][i,0]**2 # Dynamic pressure in n/m/s^2
 
         lift = CL_Turn * q * S # Calculate the actual lift considering the lift max
 
@@ -358,14 +360,14 @@ def turn(state:dict, constants:dict, turn_needed, batt_interp, thrust_interp, co
             F_lat = 0
             omega = 0
         else:
-            beta = np.arccos(W/lift)
+            beta = np.acos(W/lift)
             F_lat = lift * np.sin(beta)
             omega = F_lat / (m * v)
 
         drag = CD_Turn * q * S # Calculate the actual drag considering the lift max
         thrust = calculate_thrust(state['velocity'][i,0],thrust_interp) # Find thrust
 
-        new_acceleration = np.array([(thrust - drag) / m,0.0]) # Acceleration in ft/s^2
+        new_acceleration = np.array([(thrust - drag) / m,0.0]) # Acceleration in m/s^2
         old_velocity = np.array([state['velocity'][i,0],0.0])
         new_velocity = np.add(old_velocity, new_acceleration*dt)
         new_position = np.add(state['position'][i], old_velocity*dt)
@@ -381,7 +383,7 @@ def turn(state:dict, constants:dict, turn_needed, batt_interp, thrust_interp, co
         state['thrust'] = np.append(state['thrust'],thrust)
         state['Cl'] = np.append(state['Cl'],CL_Turn)
         state['Cd'] = np.append(state['Cd'],CD_Turn)
-        state['alpha'] = np.append(state['alpha'],aoa_max_lift) # Alpha needed to maintain level flight
+        state['alpha'] = np.append(state['alpha'],aoa_Turn) # Alpha needed to maintain level flight
         state['lift'] = np.append(state['lift'], lift)
         state['drag'] = np.append(state['drag'], drag)
         state['F_long'] = np.append(state['F_long'],thrust-drag)
@@ -389,7 +391,62 @@ def turn(state:dict, constants:dict, turn_needed, batt_interp, thrust_interp, co
         i += 1
         state['i'] = i
 
+def expose_vector(constants):
+    """
+    Function that exposes the lapsim so a sensitivity analysis can be done.
+    """
+    imported_dataframe = imported_data(constants['motocalc_filepath'])
+    batt_interp = create_batt_interpolator(imported_dataframe)
+    thrust_interp = create_thrust_interpolator(imported_dataframe)
+    coeff_interp = xflr_interp(constants['xflr5_filepath'])
 
+    # Calculate max/cruise aoa based on weight and XFLR data
+    cl_max,cd_max = xflr_results(coeff_interp, 'alpha', constants['max_aoa'])
+    constants['max_lift_coeffs'] = [constants['max_aoa'],cl_max,cd_max]
+    cruise_cl = constants['W'] / (0.5 * constants['rho'] * (82**2) * constants['S']) # Assume 82 ft/s cruise speed
+    cruise_cd, cruise_aoa = xflr_results(coeff_interp, 'Cl', cruise_cl)
+    constants['cruise_coeffs'] = [cruise_aoa, cruise_cl, cruise_cd]
+
+    state = {
+        'velocity': np.array([[0.0,0.0]]), #ft/s
+        'position': np.array([[0.0,0.0]]), #ft
+        'acceleration': np.array([[0.0,0.0]]), #ft/s^2
+        'battery_charge': np.array([constants['battery_capacity']]), #mAh
+        'time': np.array([0.0]), #seconds
+        'turn_angle': np.array([0.0]), #degrees
+        'thrust': np.array([0.0]), #lbs
+        'Cl': np.array([0.0]),
+        'Cd': np.array([0.0]),
+        'alpha': np.array([0.0]),
+        'lift': np.array([0.0]), #lbs
+        'drag': np.array([0.0]), #lbs
+        'F_long': np.array([0.0]), #lbs
+        'F_lat': np.array([0.0]), #lbs
+        'i': 0
+    }
+
+    takeoff(state,constants,batt_interp,thrust_interp,coeff_interp)
+    climb(state,constants,batt_interp,thrust_interp,coeff_interp)
+
+    lap_counter = 0
+
+    while (state['battery_charge'][-1] > constants['battery_capacity']*0.3) and (state['time'][-1] < 300): # Stop if battery below 30% or time exceeds 5 minutes
+        straight(state,constants,500,batt_interp,thrust_interp,coeff_interp)
+        turn(state,constants,180,batt_interp,thrust_interp,coeff_interp)
+        straight(state,constants,500,batt_interp,thrust_interp,coeff_interp)
+        turn(state,constants,360,batt_interp,thrust_interp,coeff_interp)
+        straight(state,constants,500,batt_interp,thrust_interp,coeff_interp)
+        turn(state,constants,180,batt_interp,thrust_interp,coeff_interp)
+        straight(state,constants,500,batt_interp,thrust_interp,coeff_interp)
+        lap_counter = lap_counter + 1
+        
+    print(f"Inputs: {constants['battery_capacity']}, Weight: {constants['W']}")
+    print(f"Remaining Battery: {state['battery_charge'][-1]}")
+    print(f"Total Time: {state['time'][-1]}")
+    print(f"Total Laps: {lap_counter}")
+    return lap_counter
+
+"""
 # Running the file:
 if __name__ == '__main__':
 
@@ -522,3 +579,4 @@ if __name__ == '__main__':
     plt.show()
 
     print(f"Simulation completed with {len(state['time'])} data points over {state['time'][-1]:.1f} seconds")
+    """
