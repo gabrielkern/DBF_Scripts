@@ -4,20 +4,14 @@ import matplotlib.pyplot as plt
 
 ########################################################################
 
-Acc = 100 # number of points
 Speed = 44 # ft/s
-
-#Fuelselage
-Wb = 16 # body weight lbs
-n = 10  # g load
+term = 100 # number of terms
 
 #Wing
-Ww = 0 # wing weight in pounds
 taper = np.array([0.6]) # taper ratio
 Cr = 14.25 /12 # root chord inches #############
 a0 = 2*np.pi #section lift coefficient
 b_input= 60  /12 # span inches
-term = 100 # number of terms
 alphain = 3 # angle of attack
 alphanolift = -2.1
 rho = 0.0023769  # slugs/ft³
@@ -31,9 +25,9 @@ dClmaxf = 0.60 #based on deflection
 perc_chord = 20
 dClmaxa = 0.0
 
-# Load on wing Span Wise
 
-TotalLoad = (Wb+Ww) * n # finds total load of weight at max G value
+##########################################################################
+
 fig, axs = plt.subplots(1,1, figsize=(15, 8.8))  # 1 rows, 1 column of subplots
 
 # Gabes Code
@@ -144,7 +138,7 @@ for current_taper_ratio in taper:
         y_s_plot_data, Cl_local_data = get_spanwise_Cl_data(
                                              An_coeffs, n_indices_vals,
                                              Cr, current_taper_ratio, semi_span_s,
-                                             Acc*2)
+                                             term*2)
 
         full_y = y_s_plot_data * b_input/2 
         C_y = Cr * ( 1- 2*abs(full_y)/b_input * (1-current_taper_ratio))
