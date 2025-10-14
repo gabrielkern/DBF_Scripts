@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 ########################################################################
 
-Speed = 44 # ft/s
+Speed = 95 # ft/s
 term = 100 # number of terms
 
 #Wing
@@ -23,8 +23,7 @@ dClmaxf = 0.60 #based on deflection
 
 # ailerons  rest of span not flapped
 perc_chord = 20
-dClmaxa = 0.0
-
+dClmaxa = 0.1
 
 ##########################################################################
 

@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # baseline constants
-pass_number_const = 30
-cargo_number_const = 10
-num_laps_const = 5
+pass_number_const = 36
+cargo_number_const = 12
+num_laps_const = 4
 Whrs_const = 110
 
 def mission_score(pass_number, cargo_number, num_laps, Whrs):
