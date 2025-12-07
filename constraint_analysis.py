@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #######################################
-MTOF = 18  # lbs
+MTOF = 16  # lbs
 CD_takeoff = 0.15
 CL_takeoff = 0.9
 CL_approach = 1.2

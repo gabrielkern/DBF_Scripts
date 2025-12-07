@@ -24,9 +24,9 @@ params = {
 }
 
 # sweep from -50% to +50% of baseline
-sweep = np.linspace(0.5, 1.5, 10)
+sweep = np.linspace(-0.5, 0.5, 50)
 
-plt.figure(figsize=(8,6))
+plt.figure(figsize=(12,8))
 
 for name, base in params.items():
     pct_scores = []
@@ -37,18 +37,20 @@ for name, base in params.items():
             "Laps": num_laps_const,
             "Whrs": Whrs_const
         }
-        values[name] = base * scale
+        values[name] = base * (1 + scale)
         score = mission_score(values["Passengers"], values["Cargo"], values["Laps"], values["Whrs"])
         pct_change = ((score - baseline_score) / abs(baseline_score)) * 100  # % change
         pct_scores.append(pct_change)
-    
-    plt.plot((sweep-1)*100, pct_scores, label=name)
 
-plt.axhline(0, color='k', linestyle='--', alpha=0.6)
-plt.axvline(0, color='k', linestyle='--', alpha=0.6)
-plt.xlabel("Parameter Change (%)")
-plt.ylabel("Mission Score Change (%)")
-plt.title("DBF Mission Score Sensitivity (-50% to +50%)")
-plt.legend()
-plt.grid(True)
+    plt.plot(sweep*100, pct_scores, label=name, linewidth=2, marker='o', markersize=4)
+
+plt.xlabel('Parameter Variation (%)', fontsize=12)
+plt.ylabel('Mission Score Change (%)', fontsize=12)
+plt.suptitle('Mission 2 Score Sensitivity', fontsize=16, fontweight='bold')
+plt.grid(True, alpha=0.3)
+plt.legend(fontsize=11)
+plt.axhline(y=0, color='black', linestyle='--', alpha=0.7)
+plt.axvline(x=0, color='black', linestyle='--', alpha=0.7)
+
+plt.tight_layout()
 plt.show()

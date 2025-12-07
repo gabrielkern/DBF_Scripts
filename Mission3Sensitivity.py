@@ -19,7 +19,7 @@ base = mission_score_equation(**params)
 sweep = np.linspace(-0.5,0.5,50)
 
 plt.figure(figsize=(12,8))
-plt.suptitle('Mission Score Sensitivity Analysis', fontsize=16, fontweight='bold')
+plt.suptitle('Mission 3 Score Sensitivity', fontsize=16, fontweight='bold')
 
 for items, values in params.items():
     prc_list = []
