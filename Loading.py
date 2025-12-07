@@ -5,19 +5,22 @@ import matplotlib.pyplot as plt
 ########################################################################
 
 Acc = 606 # number of points do not touch causes problems with moment
+WT = 16.075
 
 #Fuelselage
-Wb = 20 # body weight lbs
-n = 10  # g load
-placedlocations = [0.1,0.3] # location of motor,esc,battery
-placedweights = [1,1] # weights corresponding to above
+Wb = 4 # body weight lbs
+nw = 10  # g load
+qload = [0.6,.035] # pounds per inch
+qplacement = [22,32,13,58] # start,end first is pucks second ducks
+placedlocations = [3,8,10] # location of motor,esc,battery
+placedweights = [0.75,0.325,1] # weights corresponding to above
 # x=0 at nose
-cg = 0.7 # location of cg
-w = 0.5 # quarter chord positions
-L = 2 # total length
+cg = 27 # location of cg
+w = 23.6 # quarter chord positions
+L = 65 # total length
 
 #Wing
-Ww = 0 # wing weight in pounds
+Ww = 4 # wing weight in pounds
 taper = np.array([0.6]) # taper ratio
 Cr = 16.56 /12 # root chord inches #############
 a0 = 2*np.pi #section lift coefficient
@@ -48,57 +51,77 @@ height = np.concatenate((height_left, [max_height], height_left_right))
 
 # Fuelselage
 
-WT = (Wb+sum(placedweights)) # total load
+# distributed load segments (pairs)
+q_pairs = [(qplacement[i], qplacement[i+1]) for i in range(0, len(qplacement), 2)]
 
-# solving for the tail force to maintain balance
-wtl =[Wb*cg]
-for i in range(len(placedlocations)):
-    wl = placedlocations[i] * placedweights[i]
-    wtl.append(wl)
+# distributed load totals & centroids
+dist_totals = [q * (end - start) for q, (start, end) in zip(qload, q_pairs)]
+dist_centroids = [(start + end) / 2.0 for (start, end) in q_pairs]
 
-Ft = n*(WT*w - sum(wtl)) / (L-w) 
+# point loads (downward = negative, scaled by g-load)
+point_forces = [-wt * nw for wt in placedweights]   # placed weights
+point_positions = placedlocations.copy()
+point_forces.append(-Wb * nw)   # body weight
+point_positions.append(cg)
 
-# creating weight and location vectors fully
-nweights = placedweights + [Wb, -(WT+Ft/n), Ft/n]
-nlocations = placedlocations + [cg, w, L]
+# distributed loads as equivalent point loads
+dist_forces_signed = [-f * nw for f in dist_totals]
 
-# Get the sorted indices of x
-sorted_indices = sorted(range(len(nlocations)), key=lambda i: nlocations[i])
+# solve reactions at wing (x=w) and tail (x=L)
+A = np.array([[1.0, 1.0],
+              [w,   L  ]], dtype=float)
+b = np.array([
+    - (sum(point_forces) + sum(dist_forces_signed)),
+    - (sum([f * p for f, p in zip(point_forces, point_positions)]) +
+       sum([f * c for f, c in zip(dist_forces_signed, dist_centroids)]))
+], dtype=float)
+R_w, R_L = np.linalg.solve(A, b)
 
-# Reorder both x and y
-locations = [nlocations[i] for i in sorted_indices]
-weights = [nweights[i] for i in sorted_indices]
+# collect all forces
+force_positions = point_positions + [w, L]
+force_values = point_forces + [R_w, R_L]
+sorted_idx = sorted(range(len(force_positions)), key=lambda i: force_positions[i])
+force_positions = [force_positions[i] for i in sorted_idx]
+force_values = [force_values[i] for i in sorted_idx]
 
+# x grid
+x_vals = np.linspace(0.0, L, Acc)
+dx = x_vals[1] - x_vals[0]
 
-# creating shear and x values vectors
-x_vals = np.linspace(0, L, Acc)
+# shear (upward positive)
 shear = np.zeros_like(x_vals)
+for pos, val in zip(force_positions, force_values):
+    shear += np.where(x_vals >= pos, val, 0.0)
 
-for j in range(len(x_vals)): 
-    for k in range(len(locations)):
-        if x_vals[j] >= locations[k]:
-            shear[j] += weights[k]*n
+for q_val, (start, end) in zip(qload, q_pairs):
+    seg_len = end - start
+    shear += -q_val * np.clip(x_vals - start, 0.0, seg_len) * nw
 
+# integrate shear to get moment (lb*in)
+moment_in = np.zeros_like(x_vals)
+acc = 0.0
+for j in range(len(x_vals) - 1):
+    acc += 0.5 * (shear[j] + shear[j+1]) * dx
+    moment_in[j+1] = acc
 
-# moment calcs
-val = 0
-moment = np.zeros_like(x_vals)
+# diagnostics
+print("Reactions (upward positive):")
+print(f" R_w @ {w:.2f} in = {R_w:.3f} lb")
+print(f" R_L @ {L:.2f} in = {R_L:.3f} lb")
+print("Net force check (should be ~0):", R_w + R_L + sum(point_forces) + sum(dist_forces_signed))
+print("Moment at right end (lb*in):", moment_in[-1])
 
-for j in range(len(moment)-1):
-    val += 0.5 * L/Acc * (-shear[j] + -shear[j+1])  # trapezoidal integration
-    moment[j+1] = val  # assign to the next point
-
-
-# Plot shear and moment diagrams
-fig, axs = plt.subplots(3,1, figsize=(15, 8.8))  # 2 rows, 1 column of subplots
-axs[0].plot(x_vals, -shear, label='Shear Force', color='royalblue')
-axs[0].plot(x_vals, moment, label='Moment', color='hotpink')
+# plotting
+fig, axs = plt.subplots(3,1, figsize=(12,8))
+axs[0].plot(x_vals/12.0, shear, label='Shear Force', color='royalblue')
+axs[0].plot(x_vals/12.0, moment_in/12.0, label='Moment', color='hotpink')
 axs[0].axhline(0, color='k', linestyle='--', linewidth=1)
-axs[0].set_title("Fuselage Shear Force and Moment Diagram")
+axs[0].set_title("Fuselage Shear / Moment Diagram")
 axs[0].set_xlabel("Fuselage Length (ft)")
-axs[0].set_ylabel("Shear Force (lbs) or Moment (lbft)")
+axs[0].set_ylabel("Shear Force (lb) and Moment (lb/ft)")
 axs[0].grid(True)
 axs[0].legend()
+
 
 
 ########################################################################
@@ -112,7 +135,7 @@ for j in taper:
 
 # Load on wing Span Wise
 
-TotalLoad = (WT+Ww) * n # finds total load of weight at max G value
+TotalLoad = (WT) * nw # finds total load of weight at max G value
 
 
 
@@ -234,9 +257,9 @@ for current_taper_ratio in taper:
         #print(Intboy)
 
         S = ((Cr + Cr*current_taper_ratio)*b/2)
-        U_needed = ((WT+Ww)*n*2 / rho / np.trapezoid(Intboy,x=full_y) )**0.5  # finds U_inf in ft/s  np.trapz(Intboy,x=full_y)
+        U_needed = (TotalLoad*2 / rho / np.trapezoid(Intboy,x=full_y) )**0.5  # finds U_inf in ft/s  np.trapz(Intboy,x=full_y)
         #U_neccesary.append(Uneeded)
-        #print(U_needed/1.467) #prints in mph
+        print(U_needed/1.467) #prints in mph
 
         # solve for shear from lift
         LiftForce = np.zeros_like(C_y)
@@ -244,7 +267,7 @@ for current_taper_ratio in taper:
         wingshear =[]
         for index in range(len(C_y)-1):
             LiftForce[index] = 1/2 * rho * U_needed**2 * (C_y[index] * Cl_local_data[index]+C_y[index+1] * Cl_local_data[index+1])/2 * abs(full_y[index]-full_y[index+1])
-        #print(LiftForce)
+        print(sum(LiftForce))
         # moving all points over
         
         for g in range(len(C_y)):
@@ -262,7 +285,7 @@ for current_taper_ratio in taper:
         LiftForce = np.insert(LiftForce,Acc,np.zeros_like(fill))  #inserts zeros for load into the Lift force so weights can be added
         for t in range(len(LiftForce)-2):
                 if LiftForce[t+1] == 0:
-                    LiftForce[t+1] = -(WT+Ww)/101*n #distributes wing weight and whole body weight along the contact
+                    LiftForce[t+1] = -(TotalLoad/nw)/101*nw #distributes wing weight and whole body weight along the contact
         
         for j in range(len(full_y)): 
              wing +=LiftForce[j]
