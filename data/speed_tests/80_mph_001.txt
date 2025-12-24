@@ -1,0 +1,25 @@
+Phidget Force Sensor Data - Speed Test
+Test Date: 2025-12-11 19:18:37
+Target Speed: 80 mph
+
+Calibration Parameters:
+Gain: 1
+Bias: 0
+
+Statistics - Voltage (V):
+Average: -0.000029
+Minimum: -0.000029
+Maximum: -0.000029
+Std Dev: 0.000000
+
+Statistics - Force (lbs):
+Average: -0.000029
+Minimum: -0.000029
+Maximum: -0.000029
+Std Dev: 0.000000
+
+Raw Data:
+Timestamp (s),Voltage (V),Force (lbs)
+0.1522,-0.000029,-0.000029
+0.4022,-0.000029,-0.000029
+0.6523,-0.000029,-0.000029

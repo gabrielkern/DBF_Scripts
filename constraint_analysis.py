@@ -5,26 +5,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #######################################
-MTOF = 16  # lbs
+MTOF = 5  # lbs
 CD_takeoff = 0.15
 CL_takeoff = 0.9
 CL_approach = 1.2
-CL_max = 1.3
+CL_max = 1.2
 Ground_Friction = 0.04
 Ground_Run = 100  # ft
-Lift_Off_Speed = 35  # ft/s
+Lift_Off_Speed = 25  # ft/s
 g = 32.174  # ft/s^2
 rho = 0.00237  # slugs/ft^3
-Cruise_Speed = 100  # ft/s
-Vert_Speed = 40  # ft/s straight vertical velocity
+Cruise_Speed = 200  # ft/s
+Vert_Speed = 80  # ft/s straight vertical velocity
 Approach_Speed = 50  # ft/s
-Stall_Speed = 35 # ft/s
-CD_min = 0.025
-max_L_D = 14
+Stall_Speed = 40 # ft/s
+CD_min = 0.02
+max_L_D = 12
 # e = 0.8
 # span = 60 / 12  # span in inches converted to feet
 k_guess = 0.1
-Turn_Bank = 70  # degrees
+Turn_Bank = 80  # degrees
 #######################################
 
 q_ground = 0.5 * rho * (Lift_Off_Speed)**2
@@ -61,10 +61,10 @@ plt.plot(W_S, TW_cruise, label='Cruise')
 plt.axvline(x=q_approach*CL_approach, color='black', linestyle='--', label='Approach')
 
 # Add vertical line for stall
-# plt.axvline(x=q_stall*CL_max, color='purple',linestyle='--',label='Stall')
+plt.axvline(x=q_stall*CL_max, color='purple',linestyle='--',label='Stall')
 
-# Add horizontal line for desired L/D (efficiency)
-# lt.axhline(y=1/max_L_D, color='black',linestyle='--',label='L/D')
+# Add horizontal line for desired L/D (efficiency) NOTE THIS DOESN'T WORK - IT IS SUPPOSED TO BE COMPARED TO CRUISE T/W, THE REST ARE TAKEOFF T/W, WHICH ARE MUCH HIGHER
+# plt.axhline(y=1/max_L_D, color='black',linestyle='--',label='L/D')
 
 # Uncommented intersection finding code (converted to Python)
 """

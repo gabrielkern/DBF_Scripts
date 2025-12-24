@@ -175,14 +175,14 @@ def plot_prop_data(results_data):
     
     # Plot 1: RPM vs Thrust
     ax1.plot(rpm_values, thrust_values, 'b-o', linewidth=2, markersize=6)
-    ax1.set_xlabel('RPM (×1000)')
+    ax1.set_xlabel('RPM (x1000)')
     ax1.set_ylabel('Thrust (N)')
     ax1.set_title('Thrust vs RPM')
     ax1.grid(True, alpha=0.3)
     
     # Plot 2: RPM vs Torque
     ax2.plot(rpm_values, torque_values, 'r-o', linewidth=2, markersize=6)
-    ax2.set_xlabel('RPM (×1000)')
+    ax2.set_xlabel('RPM (x1000)')
     ax2.set_ylabel('Torque (Nm)')
     ax2.set_title('Torque vs RPM')
     ax2.grid(True, alpha=0.3)
@@ -190,7 +190,7 @@ def plot_prop_data(results_data):
     # Plot 3: RPM vs CT & CQ (same graph)
     ax3.plot(rpm_values, ct_values, 'g-o', linewidth=2, markersize=6, label='CT')
     ax3.plot(rpm_values, cq_values, 'm-s', linewidth=2, markersize=6, label='CQ')
-    ax3.set_xlabel('RPM (×1000)')
+    ax3.set_xlabel('RPM (x1000)')
     ax3.set_ylabel('Coefficient Value')
     ax3.set_title('Thrust & Torque Coefficients vs RPM')
     ax3.legend()
@@ -198,7 +198,7 @@ def plot_prop_data(results_data):
     
     # Plot 4: RPM vs Efficiency
     ax4.plot(rpm_values, efficiency_values, 'orange', marker='o', linewidth=2, markersize=6)
-    ax4.set_xlabel('RPM (×1000)')
+    ax4.set_xlabel('RPM (x1000)')
     ax4.set_ylabel('Efficiency')
     ax4.set_title('Efficiency vs RPM')
     ax4.grid(True, alpha=0.3)

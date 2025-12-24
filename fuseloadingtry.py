@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 ########################################################################
 
 Acc = 606 # number of points do not touch causes problems with moment
-WT = 16.075
+WT = 5.5 # total weight lbs
 
 #Fuelselage
-Wb = 4 # body weight lbs
-nw = 10  # g load
+Wb = 2.5 # body weight lbs
+nw = 20  # g load
 qload = [0.6,.035] # pounds per inch
 qplacement = [22,32,13,58] # start,end first is pucks second ducks
 placedlocations = [3,8,10] # location of motor,esc,battery
@@ -30,7 +30,7 @@ SigmaC_plywood = 4500 #psi
 
 
 
-# Fuelselage
+# Fuselage
 
 # distributed load segments (pairs)
 q_pairs = [(qplacement[i], qplacement[i+1]) for i in range(0, len(qplacement), 2)]
