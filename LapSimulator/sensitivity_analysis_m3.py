@@ -1,10 +1,10 @@
 """
-to run use the command: python -m LapSimulator.sensitivity_analysis_m2
+to run use the command: python -m LapSimulator.sensitivity_analysis_m3
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
-from .LapSimM2 import expose_vector
+from .LapSimM3 import expose_vector
 
 # constants dict needed for lapsim
 """    constants = {
@@ -27,9 +27,9 @@ from .LapSimM2 import expose_vector
 
 # SET BASELINES
 EMPTY_WEIGHT = 10 #lb
-CARGO_CAPACITY = 12 #pucks
-PASSENGER_CAPACITY = 36 #ducks
 BATTERY_CAPACITY = 6000 #mAh
+BANNER_LENGTH = 60 #in
+WING_SPAN = 5 #ft
 
 # SET STATIC PARAMETERS
 LAP_ALTITUDE = 200 #ft
@@ -40,6 +40,7 @@ GRAVITY = 32.174 #ft/s^2
 RHO = 0.0023769 #slugs/ft^3 at sea level
 DT = 0.05 #seconds
 BATTERY_CELLS = 6 #number of cells in series
+BATTERY_CAPACITY = 4500 #mAh
 
 MOTOCALC_FILEPATH = 'Lark8lb10x6.csv'
 XFLR5_FILEPATH = 'Lark45lbfull04m.csv'
@@ -60,40 +61,40 @@ constants = {
 }
 
 varied_parameters = {
-    'Empty_Weight': EMPTY_WEIGHT, #lb
-    'Cargo': CARGO_CAPACITY, #pucks
-    'Passengers': PASSENGER_CAPACITY, #ducks
-    'Battery_Capacity': BATTERY_CAPACITY, #mAh
+    'Empty_Weight': EMPTY_WEIGHT, #lbs
+    'Banner_Length': BANNER_LENGTH, #in
+    'Wing_Span': WING_SPAN, #ft
 }
 
-def mission_score_m2(constants, cargo, passengers, battery_capacity):
+def mission_score_m3(constants):
     """Runs lapsim and finds the score from the given setup for M2."""
     lap_count = expose_vector(constants)
-    income = ( passengers * (6 + ( 2 * lap_count)) ) + ( cargo * (10 + ( 8 * lap_count)) )
-    EF = battery_capacity * constants['battery_cells'] * 4.2 / 1000 / 100
-    cost = lap_count * (10 + (0.5 * passengers) + (2 * cargo)) * EF
-    return income - cost
+    RAC = (0.05 * constants['wing_span']) + 0.75 
+    score = lap_count * constants['banner_length'] / RAC
+    return score
 
-constants['W'] = varied_parameters['Empty_Weight'] + (varied_parameters['Cargo'] * 0.375) + (varied_parameters['Passengers'] * 0.04375)
+constants['W'] = varied_parameters['Empty_Weight']
 constants['m'] = constants['W'] / constants['g']
-constants['battery_capacity'] = varied_parameters['Battery_Capacity']
-base = mission_score_m2(constants, varied_parameters['Cargo'], varied_parameters['Passengers'], varied_parameters['Battery_Capacity'])
+constants['wing_span'] = varied_parameters['Wing_Span']
+constants['banner_length'] = varied_parameters['Banner_Length']
+base = mission_score_m3(constants)
 sweep = np.linspace(-0.25,0.25,50)
 
 plt.figure(figsize=(12,8))
-plt.suptitle('Mission 2 Airplane Sensitivity', fontsize=16, fontweight='bold')
+plt.suptitle('Mission 3 Airplane Sensitivity', fontsize=16, fontweight='bold')
 
-colors = ['#B30638', '#A6A6A6', '#000000', '#EA9999']
+colors = ['#B30638', '#A6A6A6', '#000000']
 
 for idx, (items, values) in enumerate(varied_parameters.items()):
     prc_list = []
     for position in sweep:
         temp_params = varied_parameters.copy()
         temp_params[items] = values + (values * position)
-        constants['W'] = temp_params['Empty_Weight'] + (temp_params['Cargo'] * 0.375) + (temp_params['Passengers'] * 0.04375)
+        constants['W'] = temp_params['Empty_Weight']
         constants['m'] = constants['W'] / constants['g']
-        constants['battery_capacity'] = temp_params['Battery_Capacity']
-        abs_val = mission_score_m2(constants, temp_params['Cargo'], temp_params['Passengers'], temp_params['Battery_Capacity'])
+        constants['wing_span'] = temp_params['Wing_Span']
+        constants['banner_length'] = temp_params['Banner_Length']
+        abs_val = mission_score_m3(constants)
         prc_list.append((abs_val-base)/base * 100)
     plt.plot(sweep*100, prc_list, label=items, linewidth=2, marker='o', markersize=4, color=colors[idx])
 
