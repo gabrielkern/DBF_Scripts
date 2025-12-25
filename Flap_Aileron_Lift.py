@@ -4,22 +4,22 @@ import matplotlib.pyplot as plt
 
 ########################################################################
 
-Speed = 95 # ft/s
-term = 100 # number of terms
+Speed = 40 # ft/s
+term = 1000 # number of terms
 
 #Wing
 taper = np.array([0.6]) # taper ratio
 Cr = 14.25 /12 # root chord inches #############
 a0 = 2*np.pi #section lift coefficient
 b_input= 60  /12 # span inches
-alphain = 3 # angle of attack
+alphain = 5 # angle of attack
 alphanolift = -2.1
 rho = 0.0023769  # slugs/ft³
 
 # flaps
-perc_chord = 20 
+perc_chord = 30 
 perc_span = 60
-dClmaxf = 0.60 #based on deflection
+dClmaxf = 0.71 #based on deflection
 
 # ailerons  rest of span not flapped
 perc_chord = 20
@@ -187,3 +187,5 @@ for current_taper_ratio in taper:
 
 plt.tight_layout()
 plt.show()
+
+print(2*Lift_flap/0.00237/4.75/Speed**2)
