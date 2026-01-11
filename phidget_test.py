@@ -3,7 +3,7 @@ from Phidget22.Devices.VoltageRatioInput import *
 import time
 
 gain = 11516.71642
-bias = -2.4412758659763615e-05
+bias = -2.4387758659763615e-05
 
 def onVoltageRatioChange(self, voltageRatio):
 	force = (voltageRatio - bias) * gain
@@ -26,3 +26,5 @@ def main():
 	voltageRatioInput1.close()
 
 main()
+
+#-0.0025
