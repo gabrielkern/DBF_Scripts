@@ -8,24 +8,24 @@ Acc = 606 # number of points do not touch causes problems with moment
 WT = 16.075
 
 #Fuelselage
-Wb = 4 # body weight lbs
-nw = 8.5  # g load
+Wb = 2 # body weight lbs
+nw = 10  # g load
 qload = [0.25,.035795] # pounds per inch
-qplacement = [12.564,31.564,12,56] # start,end first is pucks second ducks
+qplacement = [10,13,13,24] # start,end first is pucks second ducks
 placedlocations = [3,8,10] # location of motor,esc,battery
 placedweights = [0.75,0.325,1.5] # weights corresponding to above
 # x=0 at nose
-cg = 25.272 # location of cg
-w = 24.5625 # quarter chord positions
-L = 68 # total length
+cg = 7.5 # location of cg
+w = 7.25 # quarter chord positions
+L = 39 # total length
 
 #Wing
-Ww = 4 # wing weight in pounds
+Ww = 2 # wing weight in pounds
 taper = np.array([0.6]) # taper ratio
-Cr = 16.56 /12 # root chord inches #############
+Cr = 13.75 /12 # root chord inches #############
 a0 = 2*np.pi #section lift coefficient
-b_input= 60  /12 # span inches
-B_width = 6.5  /12# body width in inches
+b_input= 36  /12 # span inches
+B_width = 3.25  /12# body width in inches
 term = 100 # number of terms
 alphain = 3 # angle of attack
 alphanolift = -2.1
@@ -339,8 +339,8 @@ for current_taper_ratio in taper:
         axs[1].set_xlabel("Distance from the Center (ft)")
         axs[1].set_ylabel("Shear (lb) and Moment (lbft)")
         #axs[1].set_ylim(bottom=0)
-        axs[1].set_xlim(right=2.5)
-        axs[1].set_xlim(left=-2.5)
+        #axs[1].set_xlim(right=2.5)
+        #axs[1].set_xlim(left=-2.5)
         axs[2].plot(full_y, spar_thickness, label=f"$\\ Width \\ lambda = {current_taper_ratio:.1f}$")
         #axs[2].plot(full_y, height, label=f"$\\ Thickness \\ lambda = {current_taper_ratio:.1f}$")
         axs[2].legend(loc='best')
@@ -348,8 +348,8 @@ for current_taper_ratio in taper:
         axs[2].set_xlabel("Distance from the Center (ft)")
         axs[2].set_ylabel("Spar Thickness (in)")
         axs[2].set_ylim(bottom=0)
-        axs[2].set_xlim(right=2.5)
-        axs[2].set_xlim(left=-2.5)
+        #axs[2].set_xlim(right=2.5)
+        #axs[2].set_xlim(left=-2.5)
         axs[3].plot(full_y, LiftForce, label=f"$\\ Lift \\ lambda = {current_taper_ratio:.1f}$")
         axs[3].legend(loc='best')
         axs[3].grid(True)
