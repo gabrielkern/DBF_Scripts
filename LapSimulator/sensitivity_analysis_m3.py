@@ -26,15 +26,14 @@ from .LapSimM3 import expose_vector
 """
 
 # SET BASELINES
-EMPTY_WEIGHT = 10 #lb
-BATTERY_CAPACITY = 6000 #mAh
-BANNER_LENGTH = 60 #in
-WING_SPAN = 5 #ft
+EMPTY_WEIGHT = 5.5 #lb
+BANNER_LENGTH = 120 #in
+WING_SPAN = 4 #ft
 
 # SET STATIC PARAMETERS
 LAP_ALTITUDE = 200 #ft
-CLIMB_ANGLE = 30 #deg
-WING_AREA = 4.8333 #ft^2
+CLIMB_ANGLE = 15 #deg
+WING_AREA = 2.75 #ft^2
 COEFF_FRICTION = 0.04 #unitless
 GRAVITY = 32.174 #ft/s^2
 RHO = 0.0023769 #slugs/ft^3 at sea level
