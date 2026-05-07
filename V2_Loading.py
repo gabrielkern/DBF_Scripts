@@ -5,47 +5,45 @@ import matplotlib.pyplot as plt
 ########################################################################
 
 Acc = 606 # number of points do not touch causes problems with moment
-WT = 16.075
+WT = 6
 
 #Fuelselage
-Wb = 2 # body weight lbs
+Wb = 0 # body weight lbs
 nw = 10  # g load
-qload = [0.25,.035795] # pounds per inch
-qplacement = [10,13,13,24] # start,end first is pucks second ducks
-placedlocations = [3,8,10] # location of motor,esc,battery
-placedweights = [0.75,0.325,1.5] # weights corresponding to above
+qload = [.042] # pounds per inch
+qplacement = [19.85,27.35] # start,end first is pucks second ducks
+placedlocations = [4.06,7.07,10,18.14] # location of motor,esc,battery,puck
+placedweights = [0.75,0.325,1.5,0.375] # weights corresponding to above
 # x=0 at nose
 cg = 7.5 # location of cg
-w = 7.25 # quarter chord positions
-L = 39 # total length
+w = 14.36 # quarter chord positions
+L = 43.8 # total length
 
 #Wing
 Ww = 2 # wing weight in pounds
-taper = np.array([0.6]) # taper ratio
-Cr = 13.75 /12 # root chord inches #############
+taper = np.array([1]) # taper ratio
+Cr = 11/12 # root chord inches #############
 a0 = 2*np.pi #section lift coefficient
 b_input= 36  /12 # span inches
 B_width = 3.25  /12# body width in inches
 term = 100 # number of terms
 alphain = 3 # angle of attack
-alphanolift = -2.1
+alphanolift = -1
 rho = 0.0023769  # slugs/ft³
 
 #Spar
-max_height = 1.08
-min_height = 0.648
+height = 0.5*np.ones(1313)
+Vf = 0.45
+correction = 0.4 # correction for compression and angle
 thickness_guess = np.linspace(0.0625,5,50000)
-Ebass = 1.3*10**6 #psi
+Ecarbon = 18*10**6 #psi
 Ebalsa = 4.4*10**5 #psi
 basst = 0.125 #inches
-sigma_bass = 1250 #psi
+sigma_bass = 120e3 * Vf * correction #psi
 sigma_balsa = 1000 #psi per
 shear_balsa = 800 #psi
-FOS = 1.75 # factor of safety 
-n = Ebass/Ebalsa
-height_left= np.linspace(min_height,max_height,int((1313-1)/2)) # inches
-height_left_right = np.flipud(height_left)
-height = np.concatenate((height_left, [max_height], height_left_right))
+FOS = 1.2 # factor of safety 
+n = Ecarbon/Ebalsa
 
 ########################################################################
 
@@ -104,19 +102,27 @@ for j in range(len(x_vals) - 1):
     acc += 0.5 * (shear[j] + shear[j+1]) * dx
     moment_in[j+1] = acc
 
+'''
 # diagnostics
 print("Reactions (upward positive):")
 print(f" R_w @ {w:.2f} in = {R_w:.3f} lb")
 print(f" R_L @ {L:.2f} in = {R_L:.3f} lb")
 print("Net force check (should be ~0):", R_w + R_L + sum(point_forces) + sum(dist_forces_signed))
 print("Moment at right end (lb*in):", moment_in[-1])
+'''
+
+print("Max Fuse Shear:")
+print(np.max(abs(shear)))
+
+print("Max Fuse Bending:")
+print(np.max(abs(moment_in))/12)
 
 # plotting
-fig, axs = plt.subplots(4,1, figsize=(12,8))
+fig, axs = plt.subplots(2,1)#, figsize=(15,6)
 axs[0].plot(x_vals/12.0, shear, label='Shear Force', color='royalblue')
 axs[0].plot(x_vals/12.0, moment_in/12.0, label='Moment', color='hotpink')
 axs[0].axhline(0, color='k', linestyle='--', linewidth=1)
-axs[0].set_title("Fuselage Shear / Moment Diagram")
+#axs[0].set_title("Fuselage Shear / Moment Diagram")
 axs[0].set_xlabel("Fuselage Length (ft)")
 axs[0].set_ylabel("Shear Force (lb) and Moment (lb/ft)")
 axs[0].grid(True)
@@ -259,7 +265,7 @@ for current_taper_ratio in taper:
         S = ((Cr + Cr*current_taper_ratio)*b/2)
         U_needed = (TotalLoad*2 / rho / np.trapezoid(Intboy,x=full_y) )**0.5  # finds U_inf in ft/s  np.trapz(Intboy,x=full_y)
         #U_neccesary.append(Uneeded)
-        print(U_needed/1.467) #prints in mph
+        #print(U_needed/1.467) #prints in mph
 
         # solve for shear from lift
         LiftForce = np.zeros_like(C_y)
@@ -267,7 +273,7 @@ for current_taper_ratio in taper:
         wingshear =[]
         for index in range(len(C_y)-1):
             LiftForce[index] = 1/2 * rho * U_needed**2 * (C_y[index] * Cl_local_data[index]+C_y[index+1] * Cl_local_data[index+1])/2 * abs(full_y[index]-full_y[index+1])
-        print(sum(LiftForce))
+        #print(sum(LiftForce))
         # moving all points over
         
         for g in range(len(C_y)):
@@ -327,35 +333,40 @@ for current_taper_ratio in taper:
                 principal2_balsa = sigma_max_balsa/2 - ((sigma_max_balsa/2)**2 +shear_max_balsa**2)**(1/2)
                 if  sigma_max_bass <= sigma_bass/FOS and abs(principal1_balsa) <= sigma_balsa/FOS and abs(principal2_balsa) <= sigma_balsa/FOS:
                         break
+                
             spar_thickness.append(thick)
 
         
+        print("Max Wing Shear:")
+        print(np.max(wingshear))
 
+        print("Max Wing Bending:")
+        print(np.max(wingmoment))
 
-        axs[1].plot(full_y, wingshear, label=f"$\\ Shear \\ lambda = {current_taper_ratio:.1f}$")
-        axs[1].plot(full_y, wingmoment, label=f"$\\ Moment \\ lambda = {current_taper_ratio:.1f}$")
+        axs[1].plot(full_y, wingshear, label=f"$\\ Shear \\ $")
+        axs[1].plot(full_y, wingmoment, label=f"$\\ Moment \\ $")
         axs[1].legend(loc='best')
         axs[1].grid(True)
         axs[1].set_xlabel("Distance from the Center (ft)")
         axs[1].set_ylabel("Shear (lb) and Moment (lbft)")
         #axs[1].set_ylim(bottom=0)
-        #axs[1].set_xlim(right=2.5)
-        #axs[1].set_xlim(left=-2.5)
-        axs[2].plot(full_y, spar_thickness, label=f"$\\ Width \\ lambda = {current_taper_ratio:.1f}$")
+        axs[1].set_xlim(right=1.5)
+        axs[1].set_xlim(left=-1.5)
+        #axs[2].plot(full_y, spar_thickness, label=f"$\\ Width \\ lambda = {current_taper_ratio:.1f}$")
         #axs[2].plot(full_y, height, label=f"$\\ Thickness \\ lambda = {current_taper_ratio:.1f}$")
-        axs[2].legend(loc='best')
-        axs[2].grid(True)
-        axs[2].set_xlabel("Distance from the Center (ft)")
-        axs[2].set_ylabel("Spar Thickness (in)")
-        axs[2].set_ylim(bottom=0)
+        #axs[2].legend(loc='best')
+        #axs[2].grid(True)
+        #axs[2].set_xlabel("Distance from the Center (ft)")
+        #axs[2].set_ylabel("Spar Thickness (in)")
+        #axs[2].set_ylim(bottom=0)
         #axs[2].set_xlim(right=2.5)
         #axs[2].set_xlim(left=-2.5)
-        axs[3].plot(full_y, LiftForce, label=f"$\\ Lift \\ lambda = {current_taper_ratio:.1f}$")
-        axs[3].legend(loc='best')
-        axs[3].grid(True)
-        axs[3].set_xlabel("Distance from the Center (ft)")
-        axs[3].set_ylabel("Lift in Pounds")
-        axs[3].set_ylim(bottom=0)
+        #axs[3].plot(full_y, LiftForce, label=f"$\\ Lift \\ lambda = {current_taper_ratio:.1f}$")
+        #axs[3].legend(loc='best')
+        #axs[3].grid(True)
+        #axs[3].set_xlabel("Distance from the Center (ft)")
+        #axs[3].set_ylabel("Lift in Pounds")
+        #axs[3].set_ylim(bottom=0)
 
 plt.tight_layout()
 plt.show()
