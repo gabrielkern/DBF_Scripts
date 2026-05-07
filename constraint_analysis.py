@@ -5,26 +5,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #######################################
-MTOF = 5  # lbs
+MTOF = 10  # lbs
 CD_takeoff = 0.15
-CL_takeoff = 0.9
-CL_approach = 1.2
-CL_max = 1.2
+CL_takeoff = 0.6
+CL_approach = 0.8
+CL_max = 0.75
 Ground_Friction = 0.04
-Ground_Run = 100  # ft
-Lift_Off_Speed = 25  # ft/s
+Ground_Run = 1000  # ft
+Lift_Off_Speed = 55.4  # ft/s
 g = 32.174  # ft/s^2
 rho = 0.00237  # slugs/ft^3
-Cruise_Speed = 200  # ft/s
-Vert_Speed = 80  # ft/s straight vertical velocity
-Approach_Speed = 50  # ft/s
-Stall_Speed = 40 # ft/s
-CD_min = 0.02
+Cruise_Speed = 60  # ft/s
+Vert_Speed = 20  # ft/s straight vertical velocity
+Approach_Speed = 65  # ft/s
+Stall_Speed = 50 # ft/s
+CD_min_no_banner = 0.02
+CD_min_banner = 1.2
 max_L_D = 12
 # e = 0.8
 # span = 60 / 12  # span in inches converted to feet
-k_guess = 0.1
-Turn_Bank = 80  # degrees
+k_guess = 0.08
+Turn_Bank = 45  # degrees
 #######################################
 
 q_ground = 0.5 * rho * (Lift_Off_Speed)**2
@@ -37,18 +38,19 @@ TW_takeoff = (Lift_Off_Speed**2 / (2*g*Ground_Run) +
 q_cruise = 0.5 * rho * Cruise_Speed**2
 
 TW_climb = (Vert_Speed/Cruise_Speed + 
-            q_cruise / W_S * CD_min + 
+            q_cruise / W_S * CD_min_no_banner + 
             k_guess/q_cruise * W_S)
 
 n = 1 / np.cos(np.radians(Turn_Bank))
 
-TW_turn = q_cruise * (CD_min/W_S + k_guess*(n/q_cruise)**2 * W_S)
+TW_turn = q_cruise * (CD_min_banner/W_S + k_guess*(n/q_cruise)**2 * W_S)
 
-TW_cruise = q_cruise*CD_min/W_S + k_guess/q_cruise * W_S
+TW_cruise = q_cruise*CD_min_banner/W_S + k_guess/q_cruise * W_S
 
 q_approach = 0.5 * rho * (Approach_Speed)**2
 
 q_stall = 0.5 * rho * (Stall_Speed)**2
+print(q_stall*CL_max)
 
 # Create the plot
 plt.figure(figsize=(10, 6))
@@ -84,8 +86,8 @@ plt.scatter(W_S[index-1], vec1[index-1], s=100, c='red', marker='o', zorder=5)
 plt.legend()
 plt.xlabel('Wing Loading lbs/ft^2 (W/S)')
 plt.ylabel('Thrust to Weight Ratio (T/W)')
-plt.ylim([0, 2])
-plt.xlim([0, 9])
+plt.ylim([0, 6])
+plt.xlim([0, 6])
 plt.grid(True, alpha=0.3)
 plt.title('Aircraft Performance Constraints')
 plt.show()
